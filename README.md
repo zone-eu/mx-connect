@@ -46,9 +46,9 @@ You can use a domain name or an email address as the target, for additional conf
 *   **target** is either a domain name or an email address or an IP address or IP address literal (basically anything you can have after the @-sign in an email address). Unicode is allowed.
 
 *   **port** is the port number to connect to. Defaults to 25.
-*   **localAddres** is the local IP address to use for the connection
-*   **localAddresIPv4** is the local IPv4 address to use for the connection if you want to specify an address both for IPv4 and IPv6
-*   **localAddresIPv6** is the local IPv6 address to use for the connection if you want to specify an address both for IPv4 and IPv6
+*   **localAddress** is the local IP address to use for the connection
+*   **localAddressIPv4** is the local IPv4 address to use for the connection if you want to specify an address both for IPv4 and IPv6
+*   **localAddressIPv6** is the local IPv6 address to use for the connection if you want to specify an address both for IPv4 and IPv6
 *   **dnsOptions** is an object for IP address related options
     *   **ignoreIPv6** (boolean, defaults to `false`) If true then never use IPv6 addresses for sending
     *   **preferIPv6** (boolean, defaults to `false`) If true then use IPv6 address even if IPv4 address is also available
@@ -58,7 +58,7 @@ You can use a domain name or an email address as the target, for additional conf
     *   **priority** (defaults to 0) is the MX priority number that is used to sort available MX servers (servers with higher priority are tried first)
     *   **A** is an array of IPv4 addresses. Optional, resolved from exchange hostname if not set
     *   **AAAA** is an array of IPv6 addresses. Optional, resolved from exchange hostname if not set
-*   **emitConnectHook** _function (options, socketOptions, callback)_ is a function handler to run before establishing a tcp connection to current target (defined in `socketOptions`). If the `socketOptions` object has a `socket` property after the callback then connection is not established. Useful if you want to divert the connection is ome cases, for example if the target domain is in the Onion network then you could create a socket against a SOCK proxy yourself.
+*   **connectHook** _function (options, socketOptions, callback)_ is a function handler to run before establishing a tcp connection to current target (defined in `socketOptions`). If the `socketOptions` object has a `socket` property after the callback then connection is not established. Useful if you want to divert the connection is ome cases, for example if the target domain is in the Onion network then you could create a socket against a SOCK proxy yourself.
 
 ### Connection object
 
