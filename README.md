@@ -68,7 +68,7 @@ Function callback gets connection object as the second argument
 *   **hostname** is the hostname of the exchange
 *   **host** is the IP address of the exchange
 *   **port** is the port used to connect
-*   **localAddres** is the local IP address used for the connection
+*   **localAddress** is the local IP address used for the connection
 *   **localPort** is the local port used for the connection
 
 ## License

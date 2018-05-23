@@ -8,9 +8,7 @@ let mxConnect = require('../lib/mx-connect');
 mxConnect(
     {
         target: process.argv[2] || 'gmail.com',
-        port: Number(process.argv[3]) || 25,
-        mx: 'mail.outfunnel.com',
-        localAddres: '217.146.66.10'
+        port: Number(process.argv[3]) || 25
     },
     (err, mx) => {
         if (err) {
