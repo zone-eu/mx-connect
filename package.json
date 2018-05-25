@@ -1,6 +1,6 @@
 {
     "name": "mx-connect",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "Establish TCP connection to a MX server",
     "main": "lib/mx-connect.js",
     "scripts": {
