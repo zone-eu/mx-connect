@@ -47,6 +47,7 @@ You can use a domain name or an email address as the target, for additional conf
 
 *   **port** is the port number to connect to. Defaults to 25.
 *   **localAddress** is the local IP address to use for the connection
+*   **localHostname** is the hostname of the local address
 *   **localAddressIPv4** is the local IPv4 address to use for the connection if you want to specify an address both for IPv4 and IPv6
 *   **localAddressIPv6** is the local IPv6 address to use for the connection if you want to specify an address both for IPv4 and IPv6
 *   **dnsOptions** is an object for IP address related options
