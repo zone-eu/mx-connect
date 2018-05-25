@@ -1,6 +1,6 @@
 {
     "name": "mx-connect",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Establish TCP connection to a MX server",
     "main": "lib/mx-connect.js",
     "scripts": {
@@ -10,11 +10,7 @@
         "type": "git",
         "url": "git+https://github.com/zone-eu/mx-connect.git"
     },
-    "keywords": [
-        "mx",
-        "smtp",
-        "mta"
-    ],
+    "keywords": ["mx", "smtp", "mta"],
     "author": "Andris Reinman",
     "license": "EUPL-1.1+",
     "bugs": {
