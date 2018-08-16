@@ -1,6 +1,6 @@
 {
     "name": "mx-connect",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "description": "Establish TCP connection to a MX server",
     "main": "lib/mx-connect.js",
     "scripts": {
@@ -10,7 +10,11 @@
         "type": "git",
         "url": "git+https://github.com/zone-eu/mx-connect.git"
     },
-    "keywords": ["mx", "smtp", "mta"],
+    "keywords": [
+        "mx",
+        "smtp",
+        "mta"
+    ],
     "author": "Andris Reinman",
     "license": "EUPL-1.1+",
     "bugs": {
@@ -19,12 +23,12 @@
     "homepage": "https://github.com/zone-eu/mx-connect#readme",
     "devDependencies": {
         "eslint-config-nodemailer": "^1.2.0",
-        "grunt": "^1.0.2",
-        "grunt-cli": "^1.2.0",
+        "grunt": "^1.0.3",
+        "grunt-cli": "^1.3.0",
         "grunt-contrib-nodeunit": "^2.0.0",
-        "grunt-eslint": "^20.1.0"
+        "grunt-eslint": "^21.0.0"
     },
     "dependencies": {
-        "ipaddr.js": "^1.7.0"
+        "ipaddr.js": "^1.8.1"
     }
 }
