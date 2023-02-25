@@ -54,6 +54,7 @@ You can use a domain name or an email address as the target, for additional conf
     -   **ignoreIPv6** (boolean, defaults to `false`) If true then never use IPv6 addresses for sending
     -   **preferIPv6** (boolean, defaults to `false`) If true then use IPv6 address even if IPv4 address is also available
     -   **blockLocalAddresses** (boolean, defaults to `false`) If true then refuses to connect to IP addresses that are either in loopback, private network or attached to the server. People put every kind of stuff in MX records, you do not want to flood your loopback interface because someone thought it is a great idea to set 127.0.0.1 as the MX server
+    -   **resolve** (function, defaults to `dns.resolve`, callback-style)
 -   **mx** is a resolved MX object or an array of MX objects to skip DNS resolving. Useful if you want to connect to a specific host.
     -   **exchange** is the hostname of the MX
     -   **priority** (defaults to 0) is the MX priority number that is used to sort available MX servers (servers with higher priority are tried first)
