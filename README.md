@@ -61,6 +61,12 @@ You can use a domain name or an email address as the target, for additional conf
     -   **A** is an array of IPv4 addresses. Optional, resolved from exchange hostname if not set
     -   **AAAA** is an array of IPv6 addresses. Optional, resolved from exchange hostname if not set
 -   **connectHook** _function (options, socketOptions, callback)_ is a function handler to run before establishing a tcp connection to current target (defined in `socketOptions`). If the `socketOptions` object has a `socket` property after the callback then connection is not established. Useful if you want to divert the connection is ome cases, for example if the target domain is in the Onion network then you could create a socket against a SOCK proxy yourself.
+-   **mtaSts** is an object for MTA-STS configuration
+    -   **enabled** - if not `true` then does not run MTA-STS checks
+    -   **logger(logObj)** - method to log data
+    -   **cache** - an object to manage MTA-STS policy caches
+        -   **get(domain)** -> returns cached policy object
+        -   **set(domain, policyObj)** -> caches a policy object
 -   **connectError** _function (err, options, socketOptions)_ is a function handler to run when a connection to a MX fails.
 
 ### Connection object
