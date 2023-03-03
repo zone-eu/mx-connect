@@ -2,6 +2,7 @@
 
 'use strict';
 
+const dns = require('dns');
 const mxConnect = require('../lib/mx-connect');
 
 module.exports.basic = test => {
@@ -65,6 +66,34 @@ module.exports.policyFail = test => {
 
             test.equal(connection.policyMatch.valid, false);
             test.equal(connection.policyMatch.testing, true);
+
+            connection.socket.once('end', () => test.done());
+            connection.socket.once('data', () => connection.socket.end());
+        }
+    );
+};
+
+module.exports.policySkip = test => {
+    mxConnect(
+        {
+            target: 'andris@zone.ee',
+            mtaSts: {
+                enabled: false
+            },
+            mx: [
+                {
+                    exchange: 'aspmx.l.google.com',
+                    priority: 10,
+                    A: ['64.233.165.26'],
+                    AAAA: []
+                }
+            ]
+        },
+        (err, connection) => {
+            test.ifError(err);
+            test.ok(connection.socket);
+
+            test.ok(!connection.policyMatch);
 
             connection.socket.once('end', () => test.done());
             connection.socket.once('data', () => connection.socket.end());
