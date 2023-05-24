@@ -1,6 +1,6 @@
 {
     "name": "mx-connect",
-    "version": "1.4.3",
+    "version": "1.4.4",
     "description": "Establish TCP connection to a MX server",
     "main": "lib/mx-connect.js",
     "scripts": {
@@ -23,14 +23,14 @@
     "homepage": "https://github.com/zone-eu/mx-connect#readme",
     "devDependencies": {
         "eslint-config-nodemailer": "1.2.0",
-        "eslint-config-prettier": "8.7.0",
+        "eslint-config-prettier": "8.8.0",
         "grunt": "1.6.1",
         "grunt-cli": "1.4.3",
-        "grunt-contrib-nodeunit": "4.0.0",
-        "grunt-eslint": "24.0.1"
+        "grunt-contrib-nodeunit": "5.0.0",
+        "grunt-eslint": "24.1.0"
     },
     "dependencies": {
         "ipaddr.js": "2.0.1",
-        "mailauth": "4.3.1"
+        "mailauth": "4.3.4"
     }
 }
