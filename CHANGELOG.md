@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.3](https://github.com/zone-eu/mx-connect/compare/v1.5.2...v1.5.3) (2024-01-19)
+
+
+### Bug Fixes
+
+* **typo:** Fixed typo in network error response ([2d3616d](https://github.com/zone-eu/mx-connect/commit/2d3616dff1d91c587f69d9c1ea9798e87b0cd56b))
+
 ## [1.5.2](https://github.com/zone-eu/mx-connect/compare/v1.5.1...v1.5.2) (2024-01-19)
 
 
