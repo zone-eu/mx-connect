@@ -61,4 +61,4 @@ typings/
 .next
 
 .DS_Store
-
+.npmrc
