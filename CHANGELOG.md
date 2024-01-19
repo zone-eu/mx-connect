@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/zone-eu/mx-connect/compare/v1.5.0...v1.5.1) (2024-01-19)
+
+
+### Bug Fixes
+
+* **autodeploy:** Fixed dependency retrieval ([c3b26ba](https://github.com/zone-eu/mx-connect/commit/c3b26ba527aaa4b18a9f662ea874e7275b09e4c4))
+
 ## [1.5.0](https://github.com/zone-eu/mx-connect/compare/v1.4.4...v1.5.0) (2024-01-19)
 
 
