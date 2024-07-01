@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4](https://github.com/zone-eu/mx-connect/compare/v1.5.3...v1.5.4) (2024-05-13)
+
+
+### Bug Fixes
+
+* **deps:** Bumped deps to clear security warnings ([d2efd6a](https://github.com/zone-eu/mx-connect/commit/d2efd6a8775ea76a2fcbf2e06aa6f093964ae000))
+
 ## [1.5.3](https://github.com/zone-eu/mx-connect/compare/v1.5.2...v1.5.3) (2024-01-19)
 
 
