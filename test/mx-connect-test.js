@@ -54,7 +54,7 @@ module.exports.policyFail = test => {
                 {
                     exchange: 'aspmx.l.google.com',
                     priority: 10,
-                    A: ['64.233.165.26'],
+                    A: ['64.233.163.26'],
                     AAAA: []
                 }
             ]
@@ -79,7 +79,7 @@ module.exports.policySkip = test => {
                 {
                     exchange: 'aspmx.l.google.com',
                     priority: 10,
-                    A: ['64.233.165.26'],
+                    A: ['64.233.163.26'],
                     AAAA: []
                 }
             ]

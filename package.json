@@ -32,6 +32,6 @@
     },
     "dependencies": {
         "ipaddr.js": "2.2.0",
-        "mailauth": "4.6.6"
+        "mailauth": "4.6.8"
     }
 }

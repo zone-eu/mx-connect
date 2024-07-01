@@ -8,11 +8,11 @@ module.exports.basic = test => {
     getConnection({
         domain: 'kreata.ee',
         decodedDomain: 'kreata.ee',
-        mx: [{ exchange: 'aspmx.l.google.com', priority: 10, A: ['64.233.165.26'], AAAA: [] }]
+        mx: [{ exchange: 'aspmx.l.google.com', priority: 10, A: ['64.233.163.26'], AAAA: [] }]
     })
         .then(delivery => {
             test.ok(delivery.socket);
-            test.equal(delivery.host, '64.233.165.26');
+            test.equal(delivery.host, '64.233.163.26');
             delivery.socket.once('end', () => test.done());
             delivery.socket.once('data', () => delivery.socket.end());
         })
@@ -36,14 +36,14 @@ module.exports.fallback = test => {
             {
                 exchange: 'aspmx.l.google.com',
                 priority: 10,
-                A: ['64.233.165.26'],
+                A: ['64.233.163.26'],
                 AAAA: []
             }
         ]
     })
         .then(delivery => {
             test.ok(delivery.socket);
-            test.equal(delivery.host, '64.233.165.26');
+            test.equal(delivery.host, '64.233.163.26');
             delivery.socket.once('end', () => test.done());
             delivery.socket.once('data', () => delivery.socket.end());
         })
@@ -57,7 +57,7 @@ module.exports.hook = test => {
     getConnection({
         domain: 'kreata.ee',
         decodedDomain: 'kreata.ee',
-        mx: [{ exchange: 'aspmx.l.google.com', priority: 10, A: ['64.233.165.26'], AAAA: [] }],
+        mx: [{ exchange: 'aspmx.l.google.com', priority: 10, A: ['64.233.163.26'], AAAA: [] }],
         connectHook(delivery, options, callback) {
             // not a real socket, prevents from attemting a connection
             options.socket = {
