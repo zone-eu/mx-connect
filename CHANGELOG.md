@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.5](https://github.com/zone-eu/mx-connect/compare/v1.5.4...v1.5.5) (2024-07-01)
+
+
+### Bug Fixes
+
+* **Exception:** Fixed exception on throwing an error ([21f9333](https://github.com/zone-eu/mx-connect/commit/21f9333c4eed03859432ddc4d5fb87045f2f6539))
+
 ## [1.5.4](https://github.com/zone-eu/mx-connect/compare/v1.5.3...v1.5.4) (2024-05-13)
 
 
