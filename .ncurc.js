@@ -2,6 +2,8 @@ module.exports = {
     upgrade: true,
     reject: [
         // fix later
-        'grunt-eslint'
+        'grunt-eslint',
+        // api changed
+        'eslint-config-prettier'
     ]
 };
