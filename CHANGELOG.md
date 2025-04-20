@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.6](https://github.com/zone-eu/mx-connect/compare/v1.5.5...v1.5.6) (2025-04-20)
+
+
+### Bug Fixes
+
+* handle edge case errors ([7feea75](https://github.com/zone-eu/mx-connect/commit/7feea75fdfb0ed46ff5e8356d8922b2d08b234f7))
+
 ## [1.5.5](https://github.com/zone-eu/mx-connect/compare/v1.5.4...v1.5.5) (2024-07-01)
 
 
