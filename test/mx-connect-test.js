@@ -212,3 +212,73 @@ module.exports.mxPriorityOrdering = test => {
         }
     );
 };
+
+// Promise-based API tests
+
+module.exports.promiseBasic = test => {
+    mxConnect({
+        target: 'test.example.com',
+        mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
+        connectHook(delivery, options, callback) {
+            options.socket = createMockSocket({ remoteAddress: options.host });
+            return callback();
+        }
+    })
+        .then(connection => {
+            test.ok(connection.socket);
+            test.equal(connection.host, '192.0.2.1');
+            test.done();
+        })
+        .catch(err => {
+            test.ifError(err);
+            test.done();
+        });
+};
+
+module.exports.promiseRejectsOnError = test => {
+    const mockResolver = createMockDnsResolver({
+        'fail.example.com:MX': { error: { code: 'SERVFAIL' } }
+    });
+
+    mxConnect({
+        target: 'fail.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(() => {
+            test.ok(false, 'Should have rejected');
+            test.done();
+        })
+        .catch(err => {
+            test.ok(err);
+            test.equal(err.category, 'dns');
+            test.done();
+        });
+};
+
+module.exports.promiseReturnsPromiseWithCallback = test => {
+    // Verify that mxConnect returns a promise even when callback is provided
+    const result = mxConnect(
+        {
+            target: 'test.example.com',
+            mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
+            connectHook(delivery, options, callback) {
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        },
+        () => {
+            // Callback provided but not used in this test
+        }
+    );
+
+    test.ok(result instanceof Promise, 'Should return a promise when callback is provided');
+    result
+        .then(connection => {
+            test.ok(connection.socket);
+            test.done();
+        })
+        .catch(err => {
+            test.ifError(err);
+            test.done();
+        });
+};

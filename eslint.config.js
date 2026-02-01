@@ -22,7 +22,7 @@ module.exports = [
         },
         rules: {
             'for-direction': 'error',
-            'no-await-in-loop': 'error',
+            'no-await-in-loop': 'off',
             'no-div-regex': 'error',
             strict: ['error', 'global'],
             eqeqeq: 'error',

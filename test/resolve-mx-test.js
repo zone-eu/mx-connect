@@ -131,3 +131,65 @@ module.exports.ipLiteral = test => {
             test.done();
         });
 };
+
+module.exports.fallbackToAAAA = test => {
+    const mockResolver = createMockDnsResolver({
+        'noMxNoA.example.com:MX': { error: createDnsError('ENODATA') },
+        'noMxNoA.example.com:A': { error: createDnsError('ENODATA') },
+        'noMxNoA.example.com:AAAA': { data: ['2001:db8::1'] }
+    });
+
+    resolveMx({
+        domain: 'noMxNoA.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'noMxNoA.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(delivery => {
+            test.ok(delivery.mx.length === 1);
+            test.equal(delivery.mx[0].exchange, 'noMxNoA.example.com');
+            test.equal(delivery.mx[0].mx, false);
+            test.deepEqual(delivery.mx[0].AAAA, ['2001:db8::1']);
+            test.done();
+        })
+        .catch(err => {
+            test.ifError(err);
+            test.done();
+        });
+};
+
+module.exports.customResolverCalledWithCorrectArgs = test => {
+    const calls = [];
+    const customResolver = (domain, typeOrCallback, maybeCallback) => {
+        const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
+        const type = typeof typeOrCallback === 'string' ? typeOrCallback : 'A';
+        calls.push({ domain, type });
+
+        if (type === 'MX') {
+            return setImmediate(() => callback(null, [{ exchange: 'mail.example.com', priority: 10 }]));
+        }
+        const err = new Error('ENODATA');
+        err.code = 'ENODATA';
+        return setImmediate(() => callback(err));
+    };
+
+    resolveMx({
+        domain: 'test.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'test.example.com',
+        dnsOptions: { resolve: customResolver }
+    })
+        .then(delivery => {
+            test.equal(calls.length, 1);
+            test.equal(calls[0].domain, 'test.example.com');
+            test.equal(calls[0].type, 'MX');
+            test.equal(delivery.mx[0].exchange, 'mail.example.com');
+            test.done();
+        })
+        .catch(err => {
+            test.ifError(err);
+            test.done();
+        });
+};
