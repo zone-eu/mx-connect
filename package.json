@@ -5,6 +5,7 @@
     "main": "lib/mx-connect.js",
     "scripts": {
         "test": "grunt",
+        "format": "prettier --write .",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install"
     },
     "repository": {
@@ -28,7 +29,8 @@
         "grunt": "1.6.1",
         "grunt-cli": "1.5.0",
         "grunt-contrib-nodeunit": "5.0.0",
-        "grunt-eslint": "24.3.0"
+        "grunt-eslint": "24.3.0",
+        "prettier": "^3.8.1"
     },
     "dependencies": {
         "ipaddr.js": "2.2.0",
