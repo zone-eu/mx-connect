@@ -3,6 +3,9 @@
     "version": "1.5.6",
     "description": "Establish TCP connection to a MX server",
     "main": "lib/mx-connect.js",
+    "engines": {
+        "node": ">=14.0.0"
+    },
     "scripts": {
         "test": "grunt",
         "test:unit": "grunt nodeunit:unit",
