@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.7](https://github.com/zone-eu/mx-connect/compare/v1.5.6...v1.5.7) (2026-02-01)
+
+
+### Bug Fixes
+
+* add engines field requiring Node.js 14+ ([56ebbfc](https://github.com/zone-eu/mx-connect/commit/56ebbfcb34ee4eb76f6afb130484f78e59f89115))
+* **dns-errors:** correct EOF error code and improve descriptions ([5899eef](https://github.com/zone-eu/mx-connect/commit/5899eef85c6517a0112b594240f5f5e23ec747bb))
+* **get-connection:** destroy socket on connection error to prevent handle leak ([bd3e8f5](https://github.com/zone-eu/mx-connect/commit/bd3e8f58b93dfe7f6cae1e7309710721131b60a3))
+* **net-errors:** update error codes and descriptions from libuv ([36beca2](https://github.com/zone-eu/mx-connect/commit/36beca25597f334593e120b79693795cc80b9965))
+
 ## [1.5.6](https://github.com/zone-eu/mx-connect/compare/v1.5.5...v1.5.6) (2025-04-20)
 
 
