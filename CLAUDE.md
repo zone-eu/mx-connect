@@ -35,7 +35,17 @@ npm run format
 
 ## Architecture
 
-The main module (`lib/mx-connect.js`) orchestrates a promise chain that processes connection requests:
+The main module (`lib/mx-connect.js`) supports both callback and promise APIs:
+
+```javascript
+// Promise API
+const connection = await mxConnect(options);
+
+// Callback API (also returns promise)
+mxConnect(options, (err, connection) => { ... });
+```
+
+The module orchestrates a promise chain that processes connection requests:
 
 ```
 formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> getConnection
@@ -43,12 +53,12 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 
 **Core modules in `lib/`:**
 
-- `mx-connect.js` - Entry point; builds delivery object from options, orchestrates the connection pipeline
+- `mx-connect.js` - Entry point; builds delivery object from options, orchestrates the connection pipeline, supports dual callback/promise API
 - `format-address.js` - Parses target (domain/email/IP literal), handles punycode conversion
-- `resolve-mx.js` - DNS MX record resolution with fallback to A/AAAA records
-- `resolve-ip.js` - Resolves MX hostnames to IPv4/IPv6 addresses
-- `get-connection.js` - Iterates through MX hosts attempting TCP connections
-- `tools.js` - IP validation utilities (local address detection, range checking)
+- `resolve-mx.js` - Async DNS MX record resolution with fallback to A/AAAA records
+- `resolve-ip.js` - Async resolution of MX hostnames to IPv4/IPv6 addresses (parallel)
+- `get-connection.js` - Recursive promise-based iteration through MX hosts attempting TCP connections
+- `tools.js` - Shared utilities: `getDnsResolver` (promisifies custom DNS resolvers or uses native `dns.promises`), `isNotFoundError`, IP validation (`isLocal`, `isInvalid`)
 - `dns-errors.js` / `net-errors.js` - Error code to message mappings
 
 **Key data structure:** The `delivery` object flows through the pipeline, accumulating:
@@ -59,6 +69,8 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 
 **MTA-STS integration:** Uses `mailauth` library for policy fetching and MX validation. Policies are cached via user-provided cache handlers.
 
+**Custom DNS resolvers:** The library accepts callback-style custom resolvers via `dnsOptions.resolve`. These are automatically promisified internally. When no custom resolver is provided, native `dns.promises` is used.
+
 ## Testing
 
-Tests use nodeunit framework. Test files in `test/` follow the pattern `*-test.js` and test each corresponding module in `lib/`.
+Tests use nodeunit framework. Test files in `test/` follow the pattern `*-test.js` and test each corresponding module in `lib/`. Integration tests are in `test/integration/`.
