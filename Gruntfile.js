@@ -8,6 +8,8 @@ module.exports = function (grunt) {
         },
 
         nodeunit: {
+            unit: ['test/*-test.js'],
+            integration: ['test/integration/*-test.js'],
             all: ['test/**/*-test.js']
         }
     });
@@ -17,5 +19,5 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-nodeunit');
 
     // Tasks
-    grunt.registerTask('default', ['eslint', 'nodeunit']);
+    grunt.registerTask('default', ['eslint', 'nodeunit:all']);
 };

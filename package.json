@@ -5,6 +5,8 @@
     "main": "lib/mx-connect.js",
     "scripts": {
         "test": "grunt",
+        "test:unit": "grunt nodeunit:unit",
+        "test:integration": "grunt nodeunit:integration",
         "lint": "eslint .",
         "format": "prettier --write .",
         "update": "rm -rf node_modules package-lock.json && ncu -u && npm install"
