@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Do not include Claude as a co-contributor in commit messages.
 3. Use Conventional Commit format for all commit messages.
 4. Keep the year in LICENSE up to date.
+5. After every code change, run `npm run format` and `npm run lint` before committing.
 
 ## Project Overview
 
@@ -19,8 +20,8 @@ mx-connect is a Node.js library that establishes TCP connections to MX (Mail Exc
 # Run tests (includes linting + nodeunit tests)
 npm test
 
-# Run only linting
-npx grunt eslint
+# Run linting
+npm run lint
 
 # Run only unit tests
 npx grunt nodeunit
@@ -41,6 +42,7 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 ```
 
 **Core modules in `lib/`:**
+
 - `mx-connect.js` - Entry point; builds delivery object from options, orchestrates the connection pipeline
 - `format-address.js` - Parses target (domain/email/IP literal), handles punycode conversion
 - `resolve-mx.js` - DNS MX record resolution with fallback to A/AAAA records
@@ -50,6 +52,7 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 - `dns-errors.js` / `net-errors.js` - Error code to message mappings
 
 **Key data structure:** The `delivery` object flows through the pipeline, accumulating:
+
 - Parsed domain info (`domain`, `decodedDomain`, `isIp`, `isPunycode`)
 - Resolved MX entries (`mx` array with `exchange`, `priority`, `A`, `AAAA`)
 - Connection options (`port`, `localAddress`, `dnsOptions`, `mtaSts`)
