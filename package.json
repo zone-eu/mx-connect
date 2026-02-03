@@ -42,8 +42,7 @@
         "grunt-cli": "1.5.0",
         "grunt-contrib-nodeunit": "5.0.0",
         "grunt-eslint": "26.0.0",
-        "prettier": "3.8.1",
-        "tangerine": "^1.0.0"
+        "prettier": "3.8.1"
     },
     "dependencies": {
         "ipaddr.js": "2.3.0",
