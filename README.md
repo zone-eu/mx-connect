@@ -121,6 +121,20 @@ Function callback or promise resolution provides a connection object with the fo
 
 DANE (DNS-based Authentication of Named Entities) provides a way to authenticate TLS certificates using DNSSEC. This module supports DANE verification for outbound SMTP connections by looking up TLSA records and verifying server certificates against them.
 
+### Security Considerations
+
+> **Important**: DANE security relies on DNSSEC validation. Without DNSSEC, a DNS attacker could potentially inject fake TLSA records and pin a malicious certificate, introducing new security vulnerabilities rather than preventing them.
+
+Currently, Node.js does not expose the DNSSEC AD (Authenticated Data) flag from DNS responses, which means applications cannot verify that TLSA records were DNSSEC-validated by the resolver. This is tracked in [nodejs/node#57159](https://github.com/nodejs/node/issues/57159).
+
+**Recommendations for production use:**
+
+1. **Use a DNSSEC-validating resolver** - Configure your system to use a resolver that performs DNSSEC validation (e.g., Cloudflare's 1.1.1.1, Google's 8.8.8.8, or a local validating resolver like Unbound)
+2. **Use DNS-over-HTTPS (DoH)** - [Tangerine](https://github.com/forwardemail/tangerine) provides transport security via HTTPS, which protects against on-path attackers (though this is not a substitute for DNSSEC validation)
+3. **Monitor nodejs/node#57159** - When Node.js adds AD flag support, this module will be updated to optionally require DNSSEC validation
+
+For domains with properly configured DNSSEC, DANE provides strong protection against certificate misissuance and man-in-the-middle attacks. For domains without DNSSEC, consider using MTA-STS as an alternative or complementary security mechanism.
+
 ### Node.js Version Support
 
 Native `dns.resolveTlsa` support was added in:
