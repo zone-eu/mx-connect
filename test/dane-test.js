@@ -588,3 +588,220 @@ module.exports.daneAutoDetectNoResolver = test => {
         }
     );
 };
+
+
+/**
+ * Test extractSPKI with malformed certificate (Issue #1)
+ */
+module.exports.extractSPKIMalformedCert = test => {
+    // Test with null
+    let result = dane.extractSPKI(null);
+    test.equal(result, null, 'Should return null for null certificate');
+
+    // Test with empty object
+    result = dane.extractSPKI({});
+    test.equal(result, null, 'Should return null for empty certificate');
+
+    // Test with invalid publicKey
+    result = dane.extractSPKI({ publicKey: 'invalid-key-data' });
+    test.equal(result, null, 'Should return null for invalid publicKey');
+
+    // Test with malformed publicKey buffer
+    result = dane.extractSPKI({ publicKey: Buffer.from('invalid') });
+    test.equal(result, null, 'Should return null for malformed publicKey buffer');
+
+    test.done();
+};
+
+/**
+ * Test getCertData with malformed certificate (Issue #2)
+ */
+module.exports.getCertDataMalformedCert = test => {
+    // Test with null
+    let result = dane.getCertData(null, dane.DANE_SELECTOR.FULL_CERT);
+    test.equal(result, null, 'Should return null for null certificate');
+
+    // Test with empty object (no raw property)
+    result = dane.getCertData({}, dane.DANE_SELECTOR.FULL_CERT);
+    test.equal(result, null, 'Should return null for certificate without raw');
+
+    // Test with SPKI selector on malformed cert
+    result = dane.getCertData({ publicKey: 'invalid' }, dane.DANE_SELECTOR.SPKI);
+    test.equal(result, null, 'Should return null for malformed certificate with SPKI selector');
+
+    test.done();
+};
+
+/**
+ * Test verifyCertAgainstTlsa with malformed TLSA records (Issue #4)
+ */
+module.exports.verifyCertMalformedTlsaRecords = test => {
+    const mockCert = {
+        raw: Buffer.from('test-cert-data'),
+        publicKey: null
+    };
+
+    // Test with record missing cert field
+    const recordsNoCert = [{ usage: 3, selector: 0, mtype: 1 }];
+    let result = dane.verifyCertAgainstTlsa(mockCert, recordsNoCert);
+    test.equal(result.valid, false, 'Should be invalid when record has no cert field');
+
+    // Test with invalid usage value (should not crash)
+    const recordsInvalidUsage = [{ usage: 99, selector: 0, mtype: 1, cert: Buffer.alloc(32) }];
+    result = dane.verifyCertAgainstTlsa(mockCert, recordsInvalidUsage);
+    test.equal(result.valid, false, 'Should be invalid for unknown usage type');
+
+    // Test with invalid selector value (should not crash)
+    const recordsInvalidSelector = [{ usage: 3, selector: 99, mtype: 1, cert: Buffer.alloc(32) }];
+    result = dane.verifyCertAgainstTlsa(mockCert, recordsInvalidSelector);
+    test.equal(result.valid, false, 'Should be invalid for unknown selector');
+
+    test.done();
+};
+
+/**
+ * Test createDaneVerifier catches exceptions (Issue #1, #2, #4)
+ */
+module.exports.createDaneVerifierCatchesExceptions = test => {
+    const tlsaRecords = [
+        {
+            usage: 3,
+            selector: 1,
+            mtype: 1,
+            cert: Buffer.alloc(32, 0xff)
+        }
+    ];
+
+    const verifier = dane.createDaneVerifier(tlsaRecords, { verify: true });
+
+    // Test with malformed certificate - should not throw
+    let result;
+    try {
+        result = verifier('example.com', { publicKey: 'invalid' });
+        test.ok(true, 'Should not throw for malformed certificate');
+    } catch (err) {
+        test.ok(false, 'Should not throw exception: ' + err.message);
+    }
+
+    // Result should be an error (verification failed), not an exception
+    test.ok(result instanceof Error || result === undefined, 'Should return error or undefined, not throw');
+
+    test.done();
+};
+
+/**
+ * Test isNoRecordsError helper function
+ */
+module.exports.isNoRecordsErrorHelper = test => {
+    test.ok(dane.isNoRecordsError, 'isNoRecordsError should be exported');
+    test.equal(dane.isNoRecordsError('ENODATA'), true, 'ENODATA should be a no-records error');
+    test.equal(dane.isNoRecordsError('ENOTFOUND'), true, 'ENOTFOUND should be a no-records error');
+    test.equal(dane.isNoRecordsError('ENOENT'), true, 'ENOENT should be a no-records error');
+    test.equal(dane.isNoRecordsError('ESERVFAIL'), false, 'ESERVFAIL should not be a no-records error');
+    test.equal(dane.isNoRecordsError('ETIMEDOUT'), false, 'ETIMEDOUT should not be a no-records error');
+    test.equal(dane.isNoRecordsError(undefined), false, 'undefined should not be a no-records error');
+    test.done();
+};
+
+/**
+ * Test hasNativePromiseResolveTlsa detection
+ */
+module.exports.hasNativePromiseResolveTlsaDetection = test => {
+    const dns = require('dns');
+    const expected = dns.promises && typeof dns.promises.resolveTlsa === 'function';
+    test.equal(dane.hasNativePromiseResolveTlsa, expected, 'hasNativePromiseResolveTlsa should match actual dns.promises module');
+    test.done();
+};
+
+/**
+ * Test verifyCertAgainstTlsa with DANE-TA without chain (Issue #3)
+ */
+module.exports.verifyCertDaneTaWithoutChain = test => {
+    const mockCert = {
+        raw: Buffer.from('test-cert-data'),
+        publicKey: null
+    };
+
+    // DANE-TA record without chain should fail with informative error
+    const daneTeRecords = [
+        {
+            usage: 2, // DANE-TA
+            selector: 0,
+            mtype: 1,
+            cert: Buffer.alloc(32, 0xaa)
+        }
+    ];
+
+    const result = dane.verifyCertAgainstTlsa(mockCert, daneTeRecords);
+    test.equal(result.valid, false, 'Should be invalid when DANE-TA has no chain');
+    test.ok(result.error, 'Should have error message');
+    test.ok(result.error.includes('chain'), 'Error should mention chain requirement');
+
+    test.done();
+};
+
+/**
+ * Test verifyCertAgainstTlsa with PKIX-TA without chain (Issue #3)
+ */
+module.exports.verifyCertPkixTaWithoutChain = test => {
+    const mockCert = {
+        raw: Buffer.from('test-cert-data'),
+        publicKey: null
+    };
+
+    // PKIX-TA record without chain should fail with informative error
+    const pkixTaRecords = [
+        {
+            usage: 0, // PKIX-TA
+            selector: 0,
+            mtype: 1,
+            cert: Buffer.alloc(32, 0xaa)
+        }
+    ];
+
+    const result = dane.verifyCertAgainstTlsa(mockCert, pkixTaRecords);
+    test.equal(result.valid, false, 'Should be invalid when PKIX-TA has no chain');
+    test.ok(result.error, 'Should have error message');
+    test.ok(result.error.includes('chain'), 'Error should mention chain requirement');
+
+    test.done();
+};
+
+/**
+ * Test hashCertData handles exceptions gracefully
+ */
+module.exports.hashCertDataHandlesExceptions = test => {
+    // Test with invalid data type that might cause issues
+    const result = dane.hashCertData(undefined, dane.DANE_MATCHING_TYPE.SHA256);
+    test.equal(result, null, 'Should return null for undefined data');
+
+    test.done();
+};
+
+/**
+ * Test verifyCertAgainstTlsa with string cert data (hex encoded)
+ */
+module.exports.verifyCertWithStringCertData = test => {
+    const testData = Buffer.from('test-cert-data');
+    const hash = nodeCrypto.createHash('sha256').update(testData).digest();
+
+    const mockCert = {
+        raw: testData
+    };
+
+    // Record with hex-encoded cert data
+    const records = [
+        {
+            usage: 3,
+            selector: 0,
+            mtype: 1,
+            cert: hash.toString('hex') // String instead of Buffer
+        }
+    ];
+
+    const result = dane.verifyCertAgainstTlsa(mockCert, records);
+    test.equal(result.valid, true, 'Should handle hex-encoded cert data');
+    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+
+    test.done();
+};

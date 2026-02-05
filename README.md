@@ -241,12 +241,14 @@ TLSA records returned by the resolver should have the following structure:
 
 ### DANE Usage Types
 
-| Usage | Name    | Description                                              |
-| ----- | ------- | -------------------------------------------------------- |
-| 0     | PKIX-TA | CA constraint - must chain to specified CA               |
-| 1     | PKIX-EE | Service certificate constraint - must match exactly      |
-| 2     | DANE-TA | Trust anchor assertion - specified cert is trust anchor  |
-| 3     | DANE-EE | Domain-issued certificate - certificate must match       |
+| Usage | Name    | Description                                              | Support Status |
+| ----- | ------- | -------------------------------------------------------- | -------------- |
+| 0     | PKIX-TA | CA constraint - must chain to specified CA               | ⚠️ Limited*    |
+| 1     | PKIX-EE | Service certificate constraint - must match exactly      | ✅ Full        |
+| 2     | DANE-TA | Trust anchor assertion - specified cert is trust anchor  | ⚠️ Limited*    |
+| 3     | DANE-EE | Domain-issued certificate - certificate must match       | ✅ Full        |
+
+> **\*Note on DANE-TA and PKIX-TA**: These usage types require access to the full certificate chain, which is not available in the standard TLS `checkServerIdentity` callback. Currently, only the end-entity (leaf) certificate is verified. If the TLSA record matches the end-entity certificate, verification will succeed; otherwise, it will fail even if the record matches a CA certificate in the chain. For most SMTP deployments, DANE-EE (usage=3) is recommended as it provides the strongest security guarantees and is fully supported.
 
 ### Combining DANE with MTA-STS
 
