@@ -1,10 +1,10 @@
 {
     "name": "mx-connect",
     "version": "1.5.6",
-    "description": "Establish TCP connection to a MX server",
+    "description": "Establish TCP connection to a MX server with MTA-STS and DANE/TLSA support",
     "main": "lib/mx-connect.js",
     "engines": {
-        "node": ">=14.0.0"
+        "node": ">=18.0.0"
     },
     "scripts": {
         "test": "grunt",
@@ -21,7 +21,12 @@
     "keywords": [
         "mx",
         "smtp",
-        "mta"
+        "mta",
+        "dane",
+        "tlsa",
+        "mta-sts",
+        "email",
+        "dns"
     ],
     "author": "Andris Reinman",
     "license": "EUPL-1.1+",
