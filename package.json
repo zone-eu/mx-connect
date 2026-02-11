@@ -35,7 +35,7 @@
     },
     "homepage": "https://github.com/zone-eu/mx-connect#readme",
     "devDependencies": {
-        "@eslint/js": "9.39.2",
+        "@eslint/js": "10.0.1",
         "eslint-config-prettier": "10.1.8",
         "globals": "17.3.0",
         "grunt": "1.6.1",
@@ -46,6 +46,6 @@
     },
     "dependencies": {
         "ipaddr.js": "2.3.0",
-        "mailauth": "4.12.1"
+        "mailauth": "4.13.0"
     }
 }
