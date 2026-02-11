@@ -46,6 +46,7 @@
     },
     "dependencies": {
         "ipaddr.js": "2.3.0",
-        "mailauth": "4.13.0"
+        "mailauth": "4.13.0",
+        "punycode": "^2.3.1"
     }
 }
