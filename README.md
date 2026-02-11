@@ -78,8 +78,8 @@ You can use a domain name or an email address as the target, for additional conf
     - **ignoreIPv6** (boolean, defaults to `false`) If true then never use IPv6 addresses for sending
     - **preferIPv6** (boolean, defaults to `false`) If true then use IPv6 address even if IPv4 address is also available
     - **blockLocalAddresses** (boolean, defaults to `false`) If true then refuses to connect to IP addresses that are either in loopback, private network or attached to the server. People put every kind of stuff in MX records, you do not want to flood your loopback interface because someone thought it is a great idea to set 127.0.0.1 as the MX server
-    - **resolve** (function, defaults to native `dns.promises`, callback-style) Custom DNS resolver function with signature `resolve(domain, type, callback)` or `resolve(domain, callback)`
-- **mx** is a resolved MX object or an array of MX objects to skip DNS resolving. Useful if you want to connect to a specific host.
+    - **resolve** (function, defaults to native `dns.resolve`) Custom callback-style DNS resolver function with signature `resolve(domain, type, callback)` or `resolve(domain, callback)`
+- **mx** is a hostname string, a resolved MX object, or an array of either, to skip DNS resolving. Useful if you want to connect to a specific host. String entries are treated as hostnames (or IP addresses) with priority 0.
     - **exchange** is the hostname of the MX
     - **priority** (defaults to 0) is the MX priority number that is used to sort available MX servers (servers with higher priority are tried first)
     - **A** is an array of IPv4 addresses. Optional, resolved from exchange hostname if not set
@@ -97,7 +97,7 @@ You can use a domain name or an email address as the target, for additional conf
         - **set(domain, policyObj)** -> caches a policy object
 - **dane** is an object for DANE/TLSA configuration (see [DANE Support](#dane-support) section below)
     - **enabled** - must be set to `true` to enable DANE verification
-    - **resolveTlsa(hostname)** - custom async function to resolve TLSA records. If not provided, uses native `dns.resolveTlsa` when available
+    - **resolveTlsa(tlsaName)** - custom async function to resolve TLSA records. Receives the full TLSA query name (e.g., `_25._tcp.mail.example.com`). If not provided, uses native `dns.resolveTlsa` when available
     - **logger(logObj)** - method to log DANE information, logging is disabled by default
     - **verify** - if `true` (default), enforces DANE verification and rejects connections that fail. If `false`, only logs failures
 
