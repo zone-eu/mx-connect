@@ -4,7 +4,7 @@
     "description": "Establish TCP connection to a MX server with MTA-STS and DANE/TLSA support",
     "main": "lib/mx-connect.js",
     "engines": {
-        "node": ">=18.0.0"
+        "node": ">=14.0.0"
     },
     "scripts": {
         "test": "grunt",

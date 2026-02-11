@@ -96,7 +96,7 @@ You can use a domain name or an email address as the target, for additional conf
         - **get(domain)** -> returns cached policy object
         - **set(domain, policyObj)** -> caches a policy object
 - **dane** is an object for DANE/TLSA configuration (see [DANE Support](#dane-support) section below)
-    - **enabled** - if `true` then enables DANE verification. Auto-detected based on resolver availability if not specified
+    - **enabled** - must be set to `true` to enable DANE verification
     - **resolveTlsa(hostname)** - custom async function to resolve TLSA records. If not provided, uses native `dns.resolveTlsa` when available
     - **logger(logObj)** - method to log DANE information, logging is disabled by default
     - **verify** - if `true` (default), enforces DANE verification and rejects connections that fail. If `false`, only logs failures
@@ -115,7 +115,7 @@ Function callback or promise resolution provides a connection object with the fo
 - **daneEnabled** is `true` if DANE verification is active for this connection
 - **daneVerifier** is the DANE certificate verification function (for use during TLS upgrade)
 - **tlsaRecords** is an array of TLSA records for this MX host (if DANE is enabled)
-- **requireTls** is `true` if TLS is required (set when DANE records exist)
+- **requireTls** is `true` when DANE records exist, indicating TLS should be enforced. mx-connect itself does not enforce TLS -- the consuming application should check this flag during TLS upgrade
 
 ## DANE Support
 
@@ -130,7 +130,7 @@ Currently, Node.js does not expose the DNSSEC AD (Authenticated Data) flag from 
 **Recommendations for production use:**
 
 1. **Use a DNSSEC-validating resolver** - Configure your system to use a resolver that performs DNSSEC validation (e.g., Cloudflare's 1.1.1.1, Google's 8.8.8.8, or a local validating resolver like Unbound)
-2. **Use DNS-over-HTTPS (DoH)** - [Tangerine](https://github.com/forwardemail/tangerine) provides transport security via HTTPS, which protects against on-path attackers (though this is not a substitute for DNSSEC validation)
+2. **Use DNS-over-HTTPS (DoH)** - A DoH resolver provides transport security via HTTPS, which protects against on-path attackers (though this is not a substitute for DNSSEC validation)
 3. **Monitor nodejs/node#57159** - When Node.js adds AD flag support, this module will be updated to optionally require DNSSEC validation
 
 For domains with properly configured DNSSEC, DANE provides strong protection against certificate misissuance and man-in-the-middle attacks. For domains without DNSSEC, consider using MTA-STS as an alternative or complementary security mechanism.
@@ -148,29 +148,20 @@ Native `dns.resolveTlsa` support was added in:
 | v20.x (LTS)     | ❌ None      |
 | v18.x           | ❌ None      |
 
-### Automatic Detection
+**Note:** `dane.enabled` must be set to `true` explicitly to activate DANE. There is no auto-detection. On Node.js versions without native `dns.resolveTlsa`, provide a custom resolver via the `dane.resolveTlsa` option.
 
-When you enable DANE without providing a custom resolver, mx-connect automatically detects whether native `dns.resolveTlsa` is available:
+### Custom TLSA Resolver
 
-- If native support exists, DANE is enabled automatically
-- If native support is not available and no custom resolver is provided, DANE is disabled with a log message
-
-### Using Tangerine for Older Node.js Versions
-
-For Node.js versions without native TLSA support, you can use [Tangerine](https://github.com/forwardemail/tangerine), a DNS-over-HTTPS resolver that provides `resolveTlsa` functionality:
+For Node.js versions without native TLSA support, you can provide a custom resolver function:
 
 ```javascript
 const mxConnect = require('mx-connect');
-const Tangerine = require('tangerine');
-
-// Create a Tangerine instance
-const tangerine = new Tangerine();
 
 const connection = await mxConnect({
     target: 'user@example.com',
     dane: {
         enabled: true,
-        resolveTlsa: tangerine.resolveTlsa.bind(tangerine),
+        resolveTlsa: customResolveTlsa,
         logger: console.log
     }
 });
@@ -184,36 +175,6 @@ if (connection.tlsaRecords) {
 
 // Use connection.daneVerifier during TLS upgrade
 // The verifier function can be passed to tls.connect() as checkServerIdentity
-```
-
-### DANE with Redis Caching (Tangerine)
-
-For production use, you can configure Tangerine with Redis caching for better performance:
-
-```javascript
-const mxConnect = require('mx-connect');
-const Tangerine = require('tangerine');
-const Redis = require('ioredis');
-
-const cache = new Redis();
-const tangerine = new Tangerine({
-    cache,
-    setCacheArgs(key, result) {
-        return ['PX', Math.round(result.ttl * 1000)];
-    }
-});
-
-const connection = await mxConnect({
-    target: 'user@example.com',
-    dane: {
-        enabled: true,
-        resolveTlsa: tangerine.resolveTlsa.bind(tangerine),
-        verify: true, // Enforce DANE verification
-        logger: logObj => {
-            console.log('[DANE]', logObj.msg, logObj);
-        }
-    }
-});
 ```
 
 ### DANE Verification Flow
@@ -241,12 +202,12 @@ TLSA records returned by the resolver should have the following structure:
 
 ### DANE Usage Types
 
-| Usage | Name    | Description                                              | Support Status |
-| ----- | ------- | -------------------------------------------------------- | -------------- |
-| 0     | PKIX-TA | CA constraint - must chain to specified CA               | ⚠️ Limited*    |
-| 1     | PKIX-EE | Service certificate constraint - must match exactly      | ✅ Full        |
-| 2     | DANE-TA | Trust anchor assertion - specified cert is trust anchor  | ⚠️ Limited*    |
-| 3     | DANE-EE | Domain-issued certificate - certificate must match       | ✅ Full        |
+| Usage | Name    | Description                                             | Support Status |
+| ----- | ------- | ------------------------------------------------------- | -------------- |
+| 0     | PKIX-TA | CA constraint - must chain to specified CA              | ⚠️ Limited\*   |
+| 1     | PKIX-EE | Service certificate constraint - must match exactly     | ✅ Full        |
+| 2     | DANE-TA | Trust anchor assertion - specified cert is trust anchor | ⚠️ Limited\*   |
+| 3     | DANE-EE | Domain-issued certificate - certificate must match      | ✅ Full        |
 
 > **\*Note on DANE-TA and PKIX-TA**: These usage types require access to the full certificate chain, which is not available in the standard TLS `checkServerIdentity` callback. Currently, only the end-entity (leaf) certificate is verified. If the TLSA record matches the end-entity certificate, verification will succeed; otherwise, it will fail even if the record matches a CA certificate in the chain. For most SMTP deployments, DANE-EE (usage=3) is recommended as it provides the strongest security guarantees and is fully supported.
 
@@ -263,7 +224,7 @@ const connection = await mxConnect({
     },
     dane: {
         enabled: true,
-        resolveTlsa: tangerine.resolveTlsa.bind(tangerine)
+        resolveTlsa: customResolveTlsa
     }
 });
 // Both MTA-STS and DANE checks are performed

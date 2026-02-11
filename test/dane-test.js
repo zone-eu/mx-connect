@@ -4,7 +4,7 @@
 
 const mxConnect = require('../lib/mx-connect');
 const dane = require('../lib/dane');
-const nodeCrypto = require('node:crypto');
+const nodeCrypto = require('crypto');
 
 // Helper to create mock socket for testing
 function createMockSocket(opts = {}) {
@@ -281,9 +281,50 @@ module.exports.daneWithTlsaRecords = test => {
 };
 
 /**
- * Test DANE with resolver that throws error
+ * Test DANE with resolver that throws error (verify mode rejects connection)
  */
 module.exports.daneResolverError = test => {
+    const mockResolveTlsa = async () => {
+        const err = new Error('DNS lookup failed');
+        err.code = 'ESERVFAIL';
+        throw err;
+    };
+
+    mxConnect(
+        {
+            target: 'test.example.com',
+            mx: [
+                {
+                    exchange: 'mail.example.com',
+                    priority: 10,
+                    A: ['192.0.2.1'],
+                    AAAA: []
+                }
+            ],
+            dane: {
+                enabled: true,
+                resolveTlsa: mockResolveTlsa,
+                logger: () => {}
+            },
+            connectHook(delivery, options, callback) {
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        },
+        (err, connection) => {
+            test.ok(err, 'Should return an error when DANE lookup fails in verify mode');
+            test.ok(!connection, 'Connection should not exist');
+            test.ok(err.message.includes('DANE TLSA lookup failed'), 'Error should mention DANE lookup failure');
+            test.equal(err.category, 'dane', 'Error category should be dane');
+            test.done();
+        }
+    );
+};
+
+/**
+ * Test DANE with resolver error and verify:false allows connection
+ */
+module.exports.daneResolverErrorVerifyFalse = test => {
     let logMessages = [];
 
     const mockResolveTlsa = async () => {
@@ -305,6 +346,7 @@ module.exports.daneResolverError = test => {
             ],
             dane: {
                 enabled: true,
+                verify: false,
                 resolveTlsa: mockResolveTlsa,
                 logger: logObj => {
                     logMessages.push(logObj);
@@ -317,7 +359,7 @@ module.exports.daneResolverError = test => {
         },
         (err, connection) => {
             test.ifError(err);
-            test.ok(connection, 'Connection should exist');
+            test.ok(connection, 'Connection should exist when verify is false');
             test.ok(connection.socket, 'Connection should have socket');
 
             // Check that TLSA lookup failure was logged
@@ -540,18 +582,10 @@ module.exports.daneWithPreresolvedMx = test => {
 };
 
 /**
- * Test DANE auto-detection when no resolver is available
+ * Test DANE stays disabled without explicit enabled:true
  */
 module.exports.daneAutoDetectNoResolver = test => {
-    let logMessages = [];
-
-    // Only test auto-detection if native support is not available
-    if (dane.hasNativeResolveTlsa) {
-        // Skip test - native support means DANE will be enabled
-        test.ok(true, 'Skipping - native TLSA support available');
-        test.done();
-        return;
-    }
+    let tlsaLookupCalled = false;
 
     mxConnect(
         {
@@ -565,10 +599,12 @@ module.exports.daneAutoDetectNoResolver = test => {
                 }
             ],
             dane: {
-                // enabled not set - should auto-detect
-                logger: logObj => {
-                    logMessages.push(logObj);
-                }
+                // enabled not set - should default to false
+                resolveTlsa: async () => {
+                    tlsaLookupCalled = true;
+                    return [];
+                },
+                logger: () => {}
             },
             connectHook(delivery, options, callback) {
                 options.socket = createMockSocket({ remoteAddress: options.host });
@@ -579,16 +615,11 @@ module.exports.daneAutoDetectNoResolver = test => {
             test.ifError(err);
             test.ok(connection, 'Connection should exist');
             test.ok(connection.socket, 'Connection should have socket');
-
-            // Should have logged that DANE is disabled
-            const disabledLog = logMessages.find(log => log.msg === 'DANE disabled - no resolver available');
-            test.ok(disabledLog, 'Should log DANE disabled');
-
+            test.ok(!tlsaLookupCalled, 'resolveTlsa should not be called when enabled is not set');
             test.done();
         }
     );
 };
-
 
 /**
  * Test extractSPKI with malformed certificate (Issue #1)
