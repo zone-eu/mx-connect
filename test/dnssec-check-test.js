@@ -3,20 +3,7 @@
 'use strict';
 
 const mxConnect = require('../lib/mx-connect');
-
-// Helper to create mock socket for testing
-function createMockSocket(opts = {}) {
-    const { EventEmitter } = require('events');
-    const socket = new EventEmitter();
-    socket.remoteAddress = opts.remoteAddress || '192.0.2.1';
-    socket.localAddress = opts.localAddress || '192.0.2.100';
-    socket.localPort = opts.localPort || 12345;
-    socket.write = () => true;
-    socket.end = () => socket.emit('end');
-    socket.destroy = () => socket.emit('close');
-    socket.pipe = () => socket;
-    return socket;
-}
+const { createMockSocket } = require('./test-utils');
 
 /**
  * Test: DNSSEC-secure zone proceeds to TLSA lookup
@@ -115,9 +102,7 @@ module.exports.insecureZoneSkipsTlsa = test => {
             test.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when zone is insecure');
 
             // Verify that the skip was logged
-            const skipLog = logMessages.find(
-                log => log.msg && log.msg.includes('Skipping TLSA lookup for insecure')
-            );
+            const skipLog = logMessages.find(log => log.msg && log.msg.includes('Skipping TLSA lookup for insecure'));
             test.ok(skipLog, 'Should log that TLSA lookup was skipped for insecure zone');
             test.equal(skipLog.hostname, 'mail.eo.outlook.com', 'Log should include the MX hostname');
 
@@ -179,9 +164,7 @@ module.exports.dnssecCheckFailureAssumesInsecure = test => {
             test.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when DNSSEC check fails');
 
             // Verify that the failure was logged
-            const failLog = logMessages.find(
-                log => log.msg && log.msg.includes('DNSSEC status check failed')
-            );
+            const failLog = logMessages.find(log => log.msg && log.msg.includes('DNSSEC status check failed'));
             test.ok(failLog, 'Should log that DNSSEC check failed');
             test.equal(failLog.code, 'ESERVFAIL', 'Log should include the error code');
 
@@ -277,11 +260,7 @@ module.exports.checkDnssecSecureReceivesCorrectHostname = test => {
         (err, connection) => {
             test.ifError(err);
             test.ok(connection, 'Connection should exist');
-            test.equal(
-                receivedHostname,
-                'mx1.secure-provider.com',
-                'checkDnssecSecure should receive the MX exchange hostname'
-            );
+            test.equal(receivedHostname, 'mx1.secure-provider.com', 'checkDnssecSecure should receive the MX exchange hostname');
             test.done();
         }
     );
@@ -444,7 +423,6 @@ module.exports.preResolvedTlsaBypassesDnssecCheck = test => {
             ],
             dane: {
                 enabled: true,
-                verify: false,
                 checkDnssecSecure: mockCheckDnssecSecure,
                 logger: () => {}
             },

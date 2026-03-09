@@ -295,15 +295,6 @@ function runHookFailScenario(index) {
 
 function runDaneTlsaScenario(index) {
     const mockSocket = createMockSocket('192.0.2.1');
-    const mockTlsaRecords = [
-        {
-            usage: 3,
-            selector: 1,
-            mtype: 1,
-            cert: Buffer.alloc(32, 0xff),
-            ttl: 3600
-        }
-    ];
 
     return mxConnect({
         target: 'dane' + index + '.example.com',
@@ -318,9 +309,8 @@ function runDaneTlsaScenario(index) {
         dane: {
             enabled: true,
             resolveTlsa() {
-                return Promise.resolve(mockTlsaRecords);
+                return Promise.resolve([]);
             },
-            verify: false,
             logger() {}
         },
         connectHook(delivery, options, callback) {
@@ -335,8 +325,6 @@ function runDaneTlsaScenario(index) {
 }
 
 function runDaneServfailScenario(index) {
-    const mockSocket = createMockSocket('192.0.2.1');
-
     return mxConnect({
         target: 'daneservfail' + index + '.example.com',
         mx: [
@@ -354,18 +342,16 @@ function runDaneServfailScenario(index) {
                 err.code = 'ESERVFAIL';
                 return Promise.reject(err);
             },
-            verify: false,
             logger() {}
         },
         connectHook(delivery, options, callback) {
-            options.socket = mockSocket;
+            options.socket = createMockSocket('192.0.2.1');
             setImmediate(callback);
         }
-    }).then(connection => {
-        if (connection.socket && !connection.socket.destroyed) {
-            connection.socket.end();
-        }
-    });
+    }).then(
+        () => {},
+        () => {}
+    );
 }
 
 function runDaneEnodataScenario(index) {

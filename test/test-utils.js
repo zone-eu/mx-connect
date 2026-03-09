@@ -46,11 +46,16 @@ function createMockSocket(options = {}) {
     socket.localAddress = options.localAddress || '192.168.1.1';
     socket.localPort = options.localPort || 54321;
     socket.remoteAddress = options.remoteAddress || '64.233.163.26';
+    socket.write = () => true;
     socket.end = function () {
         this.emit('end');
     };
-    socket.write = function () {};
-    socket.destroy = function () {};
+    socket.destroy = function () {
+        this.emit('close');
+    };
+    socket.pipe = function () {
+        return this;
+    };
     return socket;
 }
 
