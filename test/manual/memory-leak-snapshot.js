@@ -350,7 +350,11 @@ function runDaneServfailScenario(index) {
         }
     }).then(
         () => {},
-        () => {}
+        err => {
+            if (!err || err.code !== 'ESERVFAIL') {
+                console.error('Unexpected error in runDaneServfailScenario:', err && err.message);
+            }
+        }
     );
 }
 
