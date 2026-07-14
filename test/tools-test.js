@@ -133,5 +133,29 @@ module.exports.isInvalid = test => {
         )
     );
 
+    // multicast is never a valid unicast destination - blocked regardless of options
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '224.0.0.1'));
+    test.ok(tools.isInvalid({ dnsOptions: {} }, 'ff02::1'));
+
+    // reserved (future-use / documentation) is blocked only when blockReservedNetworks=true
+    test.equal(tools.isInvalid({ dnsOptions: {} }, '240.0.0.1'), false);
+    test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '240.0.0.1'));
+    // documentation ranges (RFC 5737 / 3849) are 'reserved' too - allowed by default
+    test.equal(tools.isInvalid({ dnsOptions: {} }, '192.0.2.1'), false);
+    test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '192.0.2.1'));
+
+    // link-local, CGNAT and IPv6 unique-local are local-scope: only blocked when blockLocalAddresses=true
+    for (const ip of ['169.254.1.1', '100.64.0.1', 'fe80::1', 'fc00::1']) {
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false);
+        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip));
+    }
+
+    // IPv6 loopback is blocked with blockLocalAddresses, allowed without
+    test.equal(tools.isInvalid({ dnsOptions: {} }, '::1'), false);
+    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::1'));
+
+    // public unicast addresses remain valid in both modes
+    test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '2606:4700:4700::1111'), false);
+
     test.done();
 };
