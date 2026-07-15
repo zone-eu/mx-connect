@@ -151,6 +151,94 @@ module.exports.nullMxDoesNotFallBackToA = test => {
         });
 };
 
+module.exports.nullMxAlongsideRealMxIsIgnored = test => {
+    // RFC 7505 Section 4.1 forbids mixing a null MX with real ones, so this is a
+    // misconfiguration, not a refusal. Deliver via the usable records rather than bounce.
+    const mockResolver = createMockDnsResolver({
+        'mixed.example.com:MX': {
+            data: [
+                { exchange: '.', priority: 0 },
+                { exchange: 'mail.example.com', priority: 10 }
+            ]
+        }
+    });
+
+    resolveMx({
+        domain: 'mixed.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'mixed.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(delivery => {
+            test.equal(delivery.mx.length, 1);
+            test.equal(delivery.mx[0].exchange, 'mail.example.com');
+            test.done();
+        })
+        .catch(err => {
+            test.ok(false, `Should not have rejected a misconfigured MX set: ${err.message}`);
+            test.done();
+        });
+};
+
+module.exports.emptyExchangeAlongsideRealMxIsIgnored = test => {
+    // A single malformed entry (empty exchange from a custom resolver) must not take down
+    // an otherwise valid MX set
+    const mockResolver = createMockDnsResolver({
+        'malformed.example.com:MX': {
+            data: [
+                { exchange: '', priority: 5 },
+                { exchange: 'mail.example.com', priority: 10 }
+            ]
+        }
+    });
+
+    resolveMx({
+        domain: 'malformed.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'malformed.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(delivery => {
+            test.equal(delivery.mx.length, 1);
+            test.equal(delivery.mx[0].exchange, 'mail.example.com');
+            test.done();
+        })
+        .catch(err => {
+            test.ok(false, `Should not have rejected a malformed MX set: ${err.message}`);
+            test.done();
+        });
+};
+
+module.exports.allNullMxRejected = test => {
+    // Multiple null MX entries are still an authoritative "no mail here"
+    const mockResolver = createMockDnsResolver({
+        'nomail4.example.com:MX': {
+            data: [
+                { exchange: '.', priority: 0 },
+                { exchange: '', priority: 0 }
+            ]
+        }
+    });
+
+    resolveMx({
+        domain: 'nomail4.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'nomail4.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(() => {
+            test.ok(false, 'Should have rejected null MX');
+            test.done();
+        })
+        .catch(err => {
+            test.equal(err.code, 'ENULLMX');
+            test.done();
+        });
+};
+
 module.exports.mxRecordsSorted = test => {
     const mockResolver = createMockDnsResolver({
         'multi.example.com:MX': {

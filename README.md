@@ -77,8 +77,12 @@ You can use a domain name or an email address as the target, for additional conf
 - **dnsOptions** is an object for IP address related options
     - **ignoreIPv6** (boolean, defaults to `false`) If true then never use IPv6 addresses for sending
     - **preferIPv6** (boolean, defaults to `false`) If true then use IPv6 address even if IPv4 address is also available
-    - **blockLocalAddresses** (boolean, defaults to `false`) If true then refuses to connect to IP addresses that are either in loopback, private network or attached to the server. People put every kind of stuff in MX records, you do not want to flood your loopback interface because someone thought it is a great idea to set 127.0.0.1 as the MX server
+    - **blockLocalAddresses** (boolean, defaults to `false`) If true then refuses to connect to IP addresses that are in a local or private scope, or attached to the server. People put every kind of stuff in MX records, you do not want to flood your loopback interface because someone thought it is a great idea to set 127.0.0.1 as the MX server. Covers loopback (`127.0.0.0/8`, `::1`), private networks (RFC1918), link-local (`169.254.0.0/16`, `fe80::/10`), carrier-grade NAT (`100.64.0.0/10`) and IPv6 unique-local (`fc00::/7`)
+    - **blockReservedNetworks** (boolean, defaults to `false`) If true then also refuses to connect to IANA reserved addresses: future-use (`240.0.0.0/4`) and the documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`). Off by default so that the documentation ranges stay usable in tests and staging setups
     - **resolve** (function, defaults to native `dns.resolve`) Custom callback-style DNS resolver function with signature `resolve(domain, type, callback)` or `resolve(domain, callback)`
+
+    Addresses that can never be a real mail host are always rejected, whatever the options above are set to: the unspecified address (`0.0.0.0`, `::`), the limited broadcast address (`255.255.255.255`) and multicast (`224.0.0.0/4`, `ff00::/8`). IPv4-mapped IPv6 addresses (for example `::ffff:127.0.0.1`) are unwrapped and judged as the IPv4 address they actually reach, so they cannot be used to slip past `blockLocalAddresses`.
+
 - **mx** is a hostname string, a resolved MX object, or an array of either, to skip DNS resolving. Useful if you want to connect to a specific host. String entries are treated as hostnames (or IP addresses) with priority 0.
     - **exchange** is the hostname of the MX
     - **priority** (defaults to 0) is the MX priority number that is used to sort available MX servers (servers with higher priority are tried first)
@@ -101,6 +105,12 @@ You can use a domain name or an email address as the target, for additional conf
     - **checkDnssecSecure(hostname)** - optional async function to check DNSSEC validation status of an MX host before attempting TLSA lookups ([RFC 7672 Section 2.2.2](https://datatracker.ietf.org/doc/html/rfc7672#section-2.2.2)). Should return `{ secure: boolean }`. When provided and the zone is insecure, TLSA lookups are skipped and the connection falls back to opportunistic TLS. See [DNSSEC-Aware DANE](#dnssec-aware-dane) below
     - **logger(logObj)** - method to log DANE information, logging is disabled by default
     - **verify** - if `true` (default), enforces DANE verification and rejects connections that fail. If `false`, only logs failures
+
+### Null MX
+
+If a domain publishes an [RFC 7505](https://datatracker.ietf.org/doc/html/rfc7505) null MX record (`0 .`), it states that it accepts no mail at all. Resolving such a target fails permanently with `err.code = 'ENULLMX'`, and no fallback to A/AAAA records is attempted. Treat it as a permanent rejection, there is no point in retrying it later.
+
+A null MX published alongside real MX records is a misconfiguration, RFC 7505 Section 4.1 forbids the combination. In that case the null entry is ignored and delivery proceeds using the remaining MX records.
 
 ### Connection object
 
