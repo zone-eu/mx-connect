@@ -79,6 +79,78 @@ module.exports.blockedLocalAddress = test => {
         });
 };
 
+module.exports.nullMxRejected = test => {
+    const mockResolver = createMockDnsResolver({
+        'nomail.example.com:MX': { data: [{ exchange: '.', priority: 0 }] }
+    });
+
+    resolveMx({
+        domain: 'nomail.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'nomail.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(() => {
+            test.ok(false, 'Should have rejected null MX');
+            test.done();
+        })
+        .catch(err => {
+            test.equal(err.category, 'dns');
+            test.equal(err.code, 'ENULLMX');
+            // Null MX is a permanent refusal - must not be marked temporary
+            test.ok(!err.temporary);
+            test.done();
+        });
+};
+
+module.exports.nullMxEmptyExchangeRejected = test => {
+    // Some resolvers surface the root exchange as an empty string rather than "."
+    const mockResolver = createMockDnsResolver({
+        'nomail2.example.com:MX': { data: [{ exchange: '', priority: 0 }] }
+    });
+
+    resolveMx({
+        domain: 'nomail2.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'nomail2.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(() => {
+            test.ok(false, 'Should have rejected null MX');
+            test.done();
+        })
+        .catch(err => {
+            test.equal(err.code, 'ENULLMX');
+            test.done();
+        });
+};
+
+module.exports.nullMxDoesNotFallBackToA = test => {
+    // Even if an A record exists, a null MX must prevent delivery (no A/AAAA fallback)
+    const mockResolver = createMockDnsResolver({
+        'nomail3.example.com:MX': { data: [{ exchange: '.', priority: 0 }] },
+        'nomail3.example.com:A': { data: ['192.0.2.1'] }
+    });
+
+    resolveMx({
+        domain: 'nomail3.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'nomail3.example.com',
+        dnsOptions: { resolve: mockResolver }
+    })
+        .then(() => {
+            test.ok(false, 'Should have rejected null MX without falling back to A');
+            test.done();
+        })
+        .catch(err => {
+            test.equal(err.code, 'ENULLMX');
+            test.done();
+        });
+};
+
 module.exports.mxRecordsSorted = test => {
     const mockResolver = createMockDnsResolver({
         'multi.example.com:MX': {
