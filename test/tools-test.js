@@ -157,5 +157,27 @@ module.exports.isInvalid = test => {
     // public unicast addresses remain valid in both modes
     test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '2606:4700:4700::1111'), false);
 
+    // IPv4-mapped IPv6 addresses connect to the embedded IPv4 host, so they must be judged as
+    // that IPv4 address rather than slipping through on their own "ipv4Mapped" range
+    for (const ip of ['::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:169.254.169.254', '::ffff:100.64.0.1']) {
+        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be blocked with blockLocalAddresses`);
+    }
+
+    // mapped forms of the always-invalid ranges are blocked with no options set
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:0.0.0.0'));
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:255.255.255.255'));
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:224.0.0.1'));
+
+    // mapped documentation ranges follow blockReservedNetworks like their bare IPv4 form
+    test.equal(tools.isInvalid({ dnsOptions: {} }, '::ffff:192.0.2.1'), false);
+    test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '::ffff:192.0.2.1'));
+
+    // a mapped public address is still deliverable - unwrapping must not over-block
+    test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::ffff:8.8.8.8'), false);
+
+    // alternate notations of the same mapped address are handled identically
+    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::FFFF:127.0.0.1'));
+    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0:0:0:0:0:ffff:7f00:1'));
+
     test.done();
 };
