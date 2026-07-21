@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.7.0](https://github.com/zone-eu/mx-connect/compare/v1.6.0...v1.7.0) (2026-07-21)
+
+
+### Features
+
+* harden MX IP validation and reject null MX (RFC 7505) ([39fb745](https://github.com/zone-eu/mx-connect/commit/39fb745d2c9ac489eca26468a75590539606e727))
+* harden MX IP validation and reject null MX (RFC 7505) ([84a33d5](https://github.com/zone-eu/mx-connect/commit/84a33d5b08f5788189f417fd6a2e0d09d57d9fbc))
+* skip TLSA lookups for non-DNSSEC zones per RFC 7672 Section 2.2.2 ([1f2759a](https://github.com/zone-eu/mx-connect/commit/1f2759a148459720376a05d3c95e176ae403ff9e))
+* skip TLSA lookups for non-DNSSEC zones per RFC 7672 Section 2.2.2 ([a3bbd4f](https://github.com/zone-eu/mx-connect/commit/a3bbd4fe0a13c9c9c2673c071344ee521db308f0))
+
+
+### Bug Fixes
+
+* `extractSPKI()` always returns `null`, silently breaking DANE/TLSA ([4f7685d](https://github.com/zone-eu/mx-connect/commit/4f7685debf85851518a76d537574ec6950487585))
+* **dane:** extractSPKI returned raw public key instead of SPKI DER ([1bf0f1d](https://github.com/zone-eu/mx-connect/commit/1bf0f1dc463512059e570ee6cd52f3e60e18379c))
+* **dane:** handle JSON-deserialized Buffer in TLSA record cert field ([d3b4ed9](https://github.com/zone-eu/mx-connect/commit/d3b4ed9d575e693e64e5cd076e45f63ed9965404))
+* **dane:** harden DNS error handling, pass cert chain, update docs ([28bd488](https://github.com/zone-eu/mx-connect/commit/28bd488bfc1e9c7ab305c5dc4433781001fff1db))
+* **dane:** harden DNS error handling, verify TA chain linkage, drop verify opt-out ([90865ab](https://github.com/zone-eu/mx-connect/commit/90865abcfaae5a6524d149c6cbdf409ad469e222))
+* **dane:** harden DNS error handling, verify TA chain linkage, drop verify opt-out ([c111ee8](https://github.com/zone-eu/mx-connect/commit/c111ee8e9ce8ea1ccab4cc967fd6880512078db8))
+* **dns:** unwrap IPv4-mapped IPv6 and narrow null MX rejection ([b7836a3](https://github.com/zone-eu/mx-connect/commit/b7836a369fa83c6bd235260f8b0d9b075530a347))
+* **dns:** unwrap IPv4-mapped IPv6 and narrow null MX rejection ([7f6d0ee](https://github.com/zone-eu/mx-connect/commit/7f6d0ee98a9cd9f16b8406f7bf8a080f95ab2409))
+* fixed linting ([90d2af2](https://github.com/zone-eu/mx-connect/commit/90d2af2118a1ea1782eb83cbf403f3f9076ccb61))
+* **test:** log unexpected errors in DANE SERVFAIL memory leak scenario ([c534bf4](https://github.com/zone-eu/mx-connect/commit/c534bf477de5426714b6fddf24905617eef9dbfe))
+
 ## [1.6.0](https://github.com/zone-eu/mx-connect/compare/v1.5.6...v1.6.0) (2026-02-11)
 
 
