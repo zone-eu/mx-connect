@@ -3,7 +3,7 @@
 'use strict';
 
 const mxConnect = require('../lib/mx-connect');
-const { createMockSocket } = require('./test-utils');
+const { createMockSocket, createDnsError } = require('./test-utils');
 
 /**
  * Test: DNSSEC-secure zone proceeds to TLSA lookup
@@ -112,13 +112,15 @@ module.exports.insecureZoneSkipsTlsa = test => {
 };
 
 /**
- * Test: checkDnssecSecure failure assumes insecure (safe default)
+ * Test: checkDnssecSecure failure is a lookup failure, not "insecure"
  *
- * When checkDnssecSecure throws an error, the zone should be treated
- * as insecure and TLSA lookups should be skipped. This is the safe
- * default to avoid SERVFAIL-induced delivery failures.
+ * A DNS failure leaves the DNSSEC status unknown. Treating that as
+ * "insecure" would skip the TLSA lookup and silently bypass DANE on a
+ * transient error (e.g. a rate-limited resolver on a queue retry), so the
+ * MX is marked as a DANE lookup failure and the connection is rejected
+ * with a temporary error instead.
  */
-module.exports.dnssecCheckFailureAssumesInsecure = test => {
+function testDnssecCheckFailure(test, code) {
     let tlsaLookupCalled = false;
     let logMessages = [];
 
@@ -128,9 +130,7 @@ module.exports.dnssecCheckFailureAssumesInsecure = test => {
     };
 
     const mockCheckDnssecSecure = async () => {
-        const err = new Error('DNS resolution failed');
-        err.code = 'ESERVFAIL';
-        throw err;
+        throw createDnsError(code, `DNSSEC status lookup failed with ${code}`);
     };
 
     mxConnect(
@@ -158,20 +158,31 @@ module.exports.dnssecCheckFailureAssumesInsecure = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
+            test.ok(err, `${code} from the DNSSEC check must not bypass DANE`);
+            test.ok(!connection, 'Connection should not exist');
+            test.equal(err.category, 'dane', 'Error category should be dane');
+            test.ok(err.temporary, 'Error should be temporary so the message is retried');
             test.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when DNSSEC check fails');
 
             // Verify that the failure was logged
             const failLog = logMessages.find(log => log.msg && log.msg.includes('DNSSEC status check failed'));
             test.ok(failLog, 'Should log that DNSSEC check failed');
-            test.equal(failLog.code, 'ESERVFAIL', 'Log should include the error code');
+            test.equal(failLog.code, code, 'Log should include the error code');
 
             test.done();
         }
     );
-};
+}
+
+module.exports.dnssecCheckFailureRejectsConnection = test => testDnssecCheckFailure(test, 'ESERVFAIL');
+
+//
+// ENODATA/ENOTFOUND mean "no TLSA records" when they come from a TLSA lookup,
+// but from the DNSSEC check they only mean the zone status is unknown. Folding
+// them into the no-records case would reopen the DANE bypass.
+//
+module.exports.dnssecCheckNoDataRejectsConnection = test => testDnssecCheckFailure(test, 'ENOTFOUND');
+module.exports.dnssecCheckNxDomainRejectsConnection = test => testDnssecCheckFailure(test, 'ENODATA');
 
 /**
  * Test: Without checkDnssecSecure, TLSA lookup proceeds as normal
