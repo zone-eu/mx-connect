@@ -308,9 +308,10 @@ module.exports.daneResolverError = test => {
 };
 
 /**
- * Test DANE with resolver error and verify:false allows connection
+ * Test that verify:false no longer bypasses DANE enforcement (RFC 7672) and
+ * that passing it logs a deprecation notice
  */
-module.exports.daneResolverErrorVerifyFalse = test => {
+module.exports.daneResolverErrorVerifyFalseStillEnforced = test => {
     let logMessages = [];
 
     const mockResolveTlsa = async () => {
@@ -344,11 +345,13 @@ module.exports.daneResolverErrorVerifyFalse = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist when verify is false');
-            test.ok(connection.socket, 'Connection should have socket');
+            test.ok(err, 'verify:false must not bypass DANE enforcement');
+            test.ok(!connection, 'Connection should not exist');
+            test.equal(err.category, 'dane', 'Error category should be dane');
 
-            // Check that TLSA lookup failure was logged
+            const deprecationLog = logMessages.find(log => log.msg && log.msg.includes('dane.verify option is deprecated'));
+            test.ok(deprecationLog, 'Should log a deprecation notice for verify:false');
+
             const failLog = logMessages.find(log => log.msg === 'TLSA lookup failed');
             test.ok(failLog, 'Should log TLSA lookup failure');
             test.ok(failLog.error, 'Should include error message');
@@ -1182,9 +1185,12 @@ module.exports.createDaneVerifierE2EWrongTlsa = test => {
 };
 
 /**
- * Test createDaneVerifier with verify:false logs failure but returns undefined
+ * Test createDaneVerifier ignores verify:false and still fails closed
+ *
+ * RFC 7672 Section 2.2 makes verification failures fatal whenever usable
+ * TLSA records are present, so there is no log-only mode.
  */
-module.exports.createDaneVerifierVerifyFalseLogsButPasses = test => {
+module.exports.createDaneVerifierIgnoresVerifyFalse = test => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
@@ -1204,7 +1210,8 @@ module.exports.createDaneVerifierVerifyFalseLogsButPasses = test => {
     });
 
     const result = verifier('mail.example.com', rawPeerCert);
-    test.equal(result, undefined, 'Should return undefined (pass) when verify is false');
+    test.ok(result instanceof Error, 'Should still return an error when verify is false');
+    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
 
     const failLog = logMessages.find(l => l.msg === 'DANE verification failed');
     test.ok(failLog, 'Should still log DANE verification failed');
@@ -1236,6 +1243,128 @@ module.exports.createDaneVerifierE2EX509Certificate = test => {
     const verifier = dane.createDaneVerifier(tlsaRecords, { verify: true, logger: () => {} });
     const result = verifier('mail.example.com', x509Cert);
     test.equal(result, undefined, 'Should return undefined (success) for X509Certificate with matching TLSA');
+    test.done();
+};
+
+//
+// A CA and an end-entity certificate that CA actually issued, used for the
+// DANE-TA (usage 2) tests below. Generated with a 100 year validity so they
+// do not expire out from under the suite.
+//
+const TA_CA_DER = Buffer.from(
+    'MIIDHTCCAgWgAwIBAgIUEzfEvuik2FH3KONZNbrXsLLiuKowDQYJKoZIhvcNAQELBQAwHTEbMBkGA1UEAwwSbXgtY29ubmVjdCBUZXN0IENBMCAXDTI2' +
+        'MDcyMTEwMzMwNVoYDzIxMjYwNjI3MTAzMzA1WjAdMRswGQYDVQQDDBJteC1jb25uZWN0IFRlc3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK' +
+        'AoIBAQDTBmW0OllNCaYdOicFrP76I/nVDD0OUG61FyBrizj2YYsaOV61Nm28hoRLyl/5mLJx9DW4b8b7mY87KGc87NXT5cRDJiXN/EEuVieZeixMLwIn' +
+        'pZqw51K+/acT0HJJUX6Nadk3/86Xo4X3nEfQPL/xJgiiBLBNpJRV1C6eH4T2Db9uXBX75l4fUL+oT58/hSGguyashzyE3g+3DRPIcpasI1bmP4cfv8Gi' +
+        't4m7LRLibPqXP4iJbHAjr4Xh8Dfvq1Sq/E2cT8tsL7nrEQ9ZVjpd09pl09s2P1pRLVynAnGKQ7I3LSeBWlK0L41OABIEy+ghjnjaTDgPap7S6og08Yv5' +
+        'AgMBAAGjUzBRMB0GA1UdDgQWBBS4SyQT7WjLroxzXK/eOP/Gc4GTrTAfBgNVHSMEGDAWgBS4SyQT7WjLroxzXK/eOP/Gc4GTrTAPBgNVHRMBAf8EBTAD' +
+        'AQH/MA0GCSqGSIb3DQEBCwUAA4IBAQBAomjape3xZkLXU/rl3+JY/2AF2mVE6DQDCkNeIeeMcXSdkyyO6N3miVi1XXk6M9tIQGTsB2naBaQIrGhiCePk' +
+        'yE0vMtMYKGa6ig+2cjzIKqtCd+vE9YSRweGEKiIG6DYVjUACCo0C37IyFnKtqP2p074/3eOBzgHW4wdYIXR3GYHJAuJuW/Px85h/s77GY9frJvecg93U' +
+        'IthlRu1b6L+hz8NtLr8LgIVqQEjdJlSXFyAK0qayMYYQpYDrjR4W+Qsg+2LFNfCa6MIPE20bqH8lXuDOZXiQyEeuYiMOSOeF/tFny/Z74Tz+Oana2GiD' +
+        '4HhD4xyU2idOxbOYw42+XOjc',
+    'base64'
+);
+
+const TA_LEAF_DER = Buffer.from(
+    'MIIDCjCCAfKgAwIBAgIUJEeZ42eIrDgzaP5cn3hXX+hc+a4wDQYJKoZIhvcNAQELBQAwHTEbMBkGA1UEAwwSbXgtY29ubmVjdCBUZXN0IENBMCAXDTI2' +
+        'MDcyMTEwMzMwNVoYDzIxMjYwNjI3MTAzMzA1WjAbMRkwFwYDVQQDDBBtYWlsLmV4YW1wbGUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC' +
+        'AQEAyRvizu5PbuRQtnmFakuEumA+lsmLvZGWUhQRyf6OhF7dMXUNkfQ/iAAhuNoUVIzjEzG/d6nmZJFg4YFCwqArT+Iv2f2wis+nRoIX588NdTDYiqeL' +
+        'yoZmjXVvlLENO9DceCubaRKtqEmz7LI+XLRGLGUER/bUJMmQ/FV2K/A/MLJHlMJKAba+m85xEmjGVKlCFscNZsHl5bAw2fVaknVytQlCnp3qjOwP6EUm' +
+        'w0h8deiPmMl+doa2T9N93f4aX3IjNaqrxxin94JxO+Shyeu/7Phd4kQ/XNFBGcMy/U41TVvre96zvJd/y3Y8RpBdYVplv+XpR7kM1Dibv2VfCXE0TwID' +
+        'AQABo0IwQDAdBgNVHQ4EFgQU08eGh9XiMdbfvNXPIJtv46bxQgYwHwYDVR0jBBgwFoAUuEskE+1oy66Mc1yv3jj/xnOBk60wDQYJKoZIhvcNAQELBQAD' +
+        'ggEBAG4UpmlkKa4Yj4Ak1jh3ejKwVEfSwRV22SqK2RpYLx5fj77eDim/PDCd60esnWW0bl3vvUfsMrGVnxJWbV57/ORcvvrrbnWitF2/cKzMfsbspQkK' +
+        '+0srbphSQdFESOuYrEOllPigjSEiT3xIUUHztlRMzvYRvr5UNXRhlU9rpyiVwpF44tW6rvJIIdag4j/Z1Gjo2H6Pw1iOW5ZbTMGj/W0LOByzvBpVwEqK' +
+        '5GOwe59o9t4KjzTotwod4fEBK1fkTX13cCwM74zFoKv6P9xvWEMkj4rffIL8CnuEFWrfMfgyV6eot+SJfjQag6sF0xOhmyzqFnkLmqqnBMwbLU7x3S8=',
+    'base64'
+);
+
+const TA_CA = new nodeCrypto.X509Certificate(TA_CA_DER);
+const TA_LEAF = new nodeCrypto.X509Certificate(TA_LEAF_DER);
+
+// TLSA record pinning the CA as trust anchor: usage 2, selector 1 (SPKI), mtype 1 (SHA-256)
+const TA_TLSA_RECORDS = [
+    {
+        usage: 2,
+        selector: 1,
+        mtype: 1,
+        cert: nodeCrypto
+            .createHash('sha256')
+            .update(TA_CA.publicKey.export({ type: 'spki', format: 'der' }))
+            .digest()
+    }
+];
+
+/**
+ * Test that createDaneVerifier forwards its third argument as the issuer chain,
+ * which is what makes DANE-TA (usage 2) verification possible
+ */
+module.exports.createDaneVerifierForwardsChainForDaneTa = test => {
+    const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
+
+    const withoutChain = verifier('mail.example.com', TA_LEAF);
+    test.ok(withoutChain instanceof Error, 'DANE-TA should fail when no chain is supplied');
+    test.equal(withoutChain.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+
+    const withChain = verifier('mail.example.com', TA_LEAF, [TA_CA]);
+    test.equal(withChain, undefined, 'DANE-TA should succeed when the issuing trust anchor is supplied in the chain');
+
+    test.done();
+};
+
+/**
+ * Test that DANE-TA works with the raw peer certificate shape returned by
+ * tls.getPeerCertificate(), not just X509Certificate instances
+ */
+module.exports.createDaneVerifierChainAcceptsRawPeerCerts = test => {
+    const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
+    const result = verifier('mail.example.com', { raw: TA_LEAF_DER }, [{ raw: TA_CA_DER }]);
+
+    test.equal(result, undefined, 'DANE-TA should succeed for raw peer certificate objects');
+    test.done();
+};
+
+/**
+ * Test that a DANE-TA record still fails when the chain contains no matching cert
+ */
+module.exports.createDaneVerifierChainWithoutMatchFails = test => {
+    const { certDer } = generateTestCert();
+
+    const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
+    const result = verifier('mail.example.com', TA_LEAF, [{ raw: certDer }]);
+
+    test.ok(result instanceof Error, 'Should fail when no chain certificate matches the TLSA record');
+    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+    test.done();
+};
+
+/**
+ * Test that a DANE-TA match requires the pinned trust anchor to have actually
+ * issued the presented certificate.
+ *
+ * The trust anchor a TLSA record pins is public - it is sent in the clear by
+ * the real server on every handshake. If merely appearing in the chain were
+ * enough, an attacker could present a certificate of their own and staple the
+ * pinned CA onto the chain to have it accepted, which defeats the point of
+ * DANE entirely.
+ */
+module.exports.createDaneVerifierRejectsUnrelatedLeafWithPinnedCaInChain = test => {
+    // A self-signed certificate NOT issued by the pinned CA, standing in for
+    // the certificate an interception proxy would present
+    const { certDer } = generateTestCert();
+    const impostorLeaf = new nodeCrypto.X509Certificate(certDer);
+
+    test.equal(impostorLeaf.checkIssued(TA_CA), false, 'Impostor leaf must not actually be issued by the pinned CA');
+
+    const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
+    const result = verifier('mail.example.com', impostorLeaf, [TA_CA]);
+
+    test.ok(result instanceof Error, 'Must reject a leaf the pinned trust anchor did not issue');
+    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+
+    // The pinned CA is not on the verified path (which is the leaf alone, since
+    // nothing in the chain issued it), so it is never considered a match
+    test.ok(result.message.includes('did not match'), 'Error should report that no TLSA record matched');
+
     test.done();
 };
 
