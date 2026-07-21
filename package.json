@@ -37,16 +37,16 @@
     "devDependencies": {
         "@eslint/js": "10.0.1",
         "eslint-config-prettier": "10.1.8",
-        "globals": "17.4.0",
-        "grunt": "1.6.1",
+        "globals": "17.7.0",
+        "grunt": "1.6.2",
         "grunt-cli": "1.5.0",
         "grunt-contrib-nodeunit": "5.0.0",
         "grunt-eslint": "26.0.0",
-        "prettier": "3.8.1"
+        "prettier": "3.9.6"
     },
     "dependencies": {
-        "ipaddr.js": "2.3.0",
-        "mailauth": "4.13.1",
+        "ipaddr.js": "2.4.0",
+        "mailauth": "4.13.3",
         "punycode": "^2.3.1"
     }
 }
