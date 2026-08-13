@@ -3,26 +3,23 @@
 
 // usage: `node connect.js gmail.com 25`
 
-let mxConnect = require('../lib/mx-connect');
+const mxConnect = require('../lib/mx-connect');
 
-mxConnect(
-    {
+async function main() {
+    const mx = await mxConnect({
         target: process.argv[2] || 'gmail.com',
         port: Number(process.argv[3]) || 25
-    },
-    (err, mx) => {
-        if (err) {
-            console.log(err);
-            return process.exit(1);
-        }
-        console.log(mx);
-        if (mx && mx.socket) {
-            console.log('Connection established to %s:%s', mx.hostname || mx.host, mx.port);
-            mx.socket.once('end', () => process.stdin.end());
-            mx.socket.pipe(process.stdout);
-            process.stdin.pipe(mx.socket);
-        } else {
-            console.log('Connection not established :/');
-        }
-    }
-);
+    });
+
+    console.log(mx);
+    console.log('Connection established to %s:%s', mx.hostname || mx.host, mx.port);
+
+    mx.socket.once('end', () => process.stdin.end());
+    mx.socket.pipe(process.stdout);
+    process.stdin.pipe(mx.socket);
+}
+
+main().catch(err => {
+    console.log(err);
+    process.exit(1);
+});
