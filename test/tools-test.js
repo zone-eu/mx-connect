@@ -4,7 +4,7 @@
 
 const tools = require('../lib/tools');
 
-module.exports.getDnsResolverWithCustomResolver = test => {
+module.exports.getDnsResolverWithCustomResolver = async test => {
     const calls = [];
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
         const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
@@ -15,31 +15,27 @@ module.exports.getDnsResolverWithCustomResolver = test => {
 
     const resolver = tools.getDnsResolver(customResolver);
 
-    // Test with type argument
-    resolver('example.com', 'MX')
-        .then(result => {
-            test.deepEqual(result, ['192.0.2.1']);
-            test.equal(calls.length, 1);
-            test.equal(calls[0].domain, 'example.com');
-            test.equal(calls[0].type, 'MX');
+    try {
+        // Test with type argument
+        let result = await resolver('example.com', 'MX');
+        test.deepEqual(result, ['192.0.2.1']);
+        test.equal(calls.length, 1);
+        test.equal(calls[0].domain, 'example.com');
+        test.equal(calls[0].type, 'MX');
 
-            // Test without type argument (should resolve A records)
-            return resolver('example2.com');
-        })
-        .then(result => {
-            test.deepEqual(result, ['192.0.2.1']);
-            test.equal(calls.length, 2);
-            test.equal(calls[1].domain, 'example2.com');
-            test.equal(calls[1].type, 'A');
-            test.done();
-        })
-        .catch(err => {
-            test.ifError(err);
-            test.done();
-        });
+        // Test without type argument (should resolve A records)
+        result = await resolver('example2.com');
+        test.deepEqual(result, ['192.0.2.1']);
+        test.equal(calls.length, 2);
+        test.equal(calls[1].domain, 'example2.com');
+        test.equal(calls[1].type, 'A');
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
 };
 
-module.exports.getDnsResolverWithCustomResolverError = test => {
+module.exports.getDnsResolverWithCustomResolverError = async test => {
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
         const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
         const err = new Error('SERVFAIL');
@@ -49,15 +45,13 @@ module.exports.getDnsResolverWithCustomResolverError = test => {
 
     const resolver = tools.getDnsResolver(customResolver);
 
-    resolver('fail.example.com', 'MX')
-        .then(() => {
-            test.ok(false, 'Should have rejected');
-            test.done();
-        })
-        .catch(err => {
-            test.equal(err.code, 'SERVFAIL');
-            test.done();
-        });
+    try {
+        await resolver('fail.example.com', 'MX');
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'SERVFAIL');
+    }
+    test.done();
 };
 
 module.exports.getDnsResolverWithoutCustomResolver = test => {
@@ -179,5 +173,47 @@ module.exports.isInvalid = test => {
     test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::FFFF:127.0.0.1'));
     test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0:0:0:0:0:ffff:7f00:1'));
 
+    test.done();
+};
+
+module.exports.getDnsResolverExplicitATypeUsesLegacyForm = async test => {
+    // An explicit 'A' type must be equivalent to an omitted type and use the
+    // two-argument custom resolver form
+    const arities = [];
+    const customResolver = (...args) => {
+        arities.push(args.length);
+        const callback = args[args.length - 1];
+        setImmediate(() => callback(null, ['192.0.2.1']));
+    };
+
+    const resolver = tools.getDnsResolver(customResolver);
+
+    try {
+        const aRecords = await resolver('example.com', 'A');
+        const mxRecords = await resolver('example.com', 'MX');
+        test.deepEqual(aRecords, ['192.0.2.1']);
+        test.deepEqual(mxRecords, ['192.0.2.1']);
+        test.deepEqual(arities, [2, 3], "Explicit 'A' must use the two-argument resolver form");
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
+};
+
+module.exports.isInvalidUnparseableAddress = test => {
+    // Garbage input must be reported invalid, not throw
+    const result = tools.isInvalid({ dnsOptions: {} }, 'not-an-ip');
+    test.ok(result);
+    test.ok(result.includes('Failed parsing'));
+    test.done();
+};
+
+module.exports.isInvalidLocalInterfaceAddress = test => {
+    // 0.0.0.0 is collected as a local interface address; with
+    // blockLocalAddresses it must be reported as such (the interface check
+    // runs before the always-invalid range check)
+    const result = tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0.0.0.0');
+    test.ok(result);
+    test.ok(result.includes('local interface'));
     test.done();
 };

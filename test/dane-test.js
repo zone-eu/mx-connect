@@ -1503,3 +1503,22 @@ module.exports.verifyCertDaneEEWithJsonDeserializedTlsaWrongHash = test => {
     test.equal(result.valid, false, 'Should reject wrong hash even from cached records');
     test.done();
 };
+
+/**
+ * Test: malformed TLSA record input must not throw out of the verifier
+ *
+ * checkServerIdentity runs inside the TLS handshake; an exception escaping it
+ * would crash the connection handling, so malformed input has to come back as
+ * a DANE_VERIFICATION_ERROR return value instead.
+ */
+module.exports.verifierHandlesMalformedTlsaRecordsWithoutThrowing = test => {
+    // Non-iterable array-like: passes the length check, then throws inside
+    // verifyCertAgainstTlsa when iterated
+    const verifier = dane.createDaneVerifier({ length: 1 }, {});
+
+    const result = verifier('mail.example.com', { raw: Buffer.from('not a real cert') });
+    test.ok(result instanceof Error, 'Malformed records should produce an error return value, not a throw');
+    test.equal(result.code, 'DANE_VERIFICATION_ERROR');
+    test.equal(result.category, 'dane');
+    test.done();
+};

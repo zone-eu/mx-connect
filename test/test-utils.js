@@ -1,6 +1,32 @@
 'use strict';
 
 const EventEmitter = require('events');
+const net = require('net');
+
+/**
+ * Starts a TCP server on a random loopback port for real-socket tests.
+ * Incoming sockets are destroyed immediately so closeServer() never hangs.
+ */
+function startServer() {
+    return new Promise(resolve => {
+        const server = net.createServer(socket => socket.destroy());
+        server.listen(0, '127.0.0.1', () => resolve(server));
+    });
+}
+
+function closeServer(server) {
+    return new Promise(resolve => server.close(resolve));
+}
+
+/**
+ * Returns a loopback port number with no listener on it.
+ */
+async function getFreePort() {
+    const server = await startServer();
+    const port = server.address().port;
+    await closeServer(server);
+    return port;
+}
 
 /**
  * Creates a mock DNS resolver for unit testing.
@@ -70,12 +96,17 @@ function createMockConnectHook(socketOptions = {}) {
 }
 
 /**
- * Creates a connectHook that simulates connection failure.
+ * Creates a connectHook that fails every connection attempt with the given error.
+ * Returns the hook function and an array collecting the attempted targets,
+ * mirroring the shape of createTrackingConnectHook.
  */
 function createFailingConnectHook(error) {
-    return function (delivery, options, callback) {
+    const attempts = [];
+    function hook(delivery, options, callback) {
+        attempts.push({ host: options.host, port: options.port });
         return callback(error);
-    };
+    }
+    return { hook, attempts };
 }
 
 /**
@@ -102,6 +133,9 @@ function closeSocketAfterData(socket, done) {
 }
 
 module.exports = {
+    startServer,
+    closeServer,
+    getFreePort,
     createMockDnsResolver,
     createDnsError,
     createMockSocket,
