@@ -79,7 +79,7 @@ You can use a domain name or an email address as the target, for additional conf
     - **preferIPv6** (boolean, defaults to `false`) If true then use IPv6 address even if IPv4 address is also available
     - **blockLocalAddresses** (boolean, defaults to `false`) If true then refuses to connect to IP addresses that are in a local or private scope, or attached to the server. People put every kind of stuff in MX records, you do not want to flood your loopback interface because someone thought it is a great idea to set 127.0.0.1 as the MX server. Covers loopback (`127.0.0.0/8`, `::1`), private networks (RFC1918), link-local (`169.254.0.0/16`, `fe80::/10`), carrier-grade NAT (`100.64.0.0/10`) and IPv6 unique-local (`fc00::/7`)
     - **blockReservedNetworks** (boolean, defaults to `false`) If true then also refuses to connect to IANA reserved addresses: future-use (`240.0.0.0/4`) and the documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`). Off by default so that the documentation ranges stay usable in tests and staging setups
-    - **resolve** (function, defaults to native `dns.resolve`) Custom callback-style DNS resolver function with signature `resolve(domain, type, callback)` or `resolve(domain, callback)`
+    - **resolve** (function, defaults to native `dns.resolve`) Custom callback-style DNS resolver function with signature `resolve(domain, type, callback)` or `resolve(domain, callback)`. A record lookups always use the two-argument form `resolve(domain, callback)`, other record types (`MX`, `AAAA`, `TXT`) use the three-argument form
 
     Addresses that can never be a real mail host are always rejected, whatever the options above are set to: the unspecified address (`0.0.0.0`, `::`), the limited broadcast address (`255.255.255.255`) and multicast (`224.0.0.0/4`, `ff00::/8`). IPv4-mapped IPv6 addresses (for example `::ffff:127.0.0.1`) are unwrapped and judged as the IPv4 address they actually reach, so they cannot be used to slip past `blockLocalAddresses`.
 
@@ -155,12 +155,11 @@ Native `dns.resolveTlsa` support was added in:
 
 | Node.js Version | TLSA Support |
 | --------------- | ------------ |
-| v24.x (Current) | ✅ Native    |
-| v23.9.0+        | ✅ Native    |
-| v22.15.0+ (LTS) | ✅ Native    |
-| v22.0.0-v22.14  | ❌ None      |
-| v20.x (LTS)     | ❌ None      |
-| v18.x           | ❌ None      |
+| v24.x           | Native       |
+| v23.9.0+        | Native       |
+| v22.15.0+       | Native       |
+| v22.0.0-v22.14  | None         |
+| v20.x and older | None         |
 
 **Note:** `dane.enabled` must be set to `true` explicitly to activate DANE. There is no auto-detection. On Node.js versions without native `dns.resolveTlsa`, provide a custom resolver via the `dane.resolveTlsa` option.
 
