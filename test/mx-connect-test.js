@@ -1,7 +1,7 @@
 'use strict';
 
 const mxConnect = require('../lib/mx-connect');
-const { createMockDnsResolver, createMockSocket } = require('./test-utils');
+const { createMockDnsResolver, createTrackingDnsResolver, createMockSocket } = require('./test-utils');
 
 module.exports.basicWithMock = test => {
     const mockResolver = createMockDnsResolver({
@@ -609,31 +609,16 @@ module.exports.mtaStsPolicyResolverUsesTwoArgumentAForm = async test => {
     // mailauth asks for A records explicitly, while custom resolvers are promised that
     // A lookups always arrive in the two-argument form. A resolver implementing only
     // that form must not be left waiting for a callback that never comes.
-    const calls = [];
-    const responses = {
-        '_mta-sts.sts-arity.example.com:TXT': [['v=STSv1; id=arity1']],
-        'mail.example.com:A': ['192.0.2.1']
-    };
-    const strictResolver = (domain, typeOrCallback, maybeCallback) => {
-        const twoArgForm = typeof typeOrCallback === 'function';
-        const type = twoArgForm ? 'A' : typeOrCallback;
-        const callback = twoArgForm ? typeOrCallback : maybeCallback;
-        calls.push({ domain, type, args: twoArgForm ? 2 : 3 });
-
-        const data = responses[`${domain}:${type}`];
-        if (!data) {
-            const err = new Error('ENOTFOUND');
-            err.code = 'ENOTFOUND';
-            return setImmediate(() => callback(err));
-        }
-        return setImmediate(() => callback(null, data));
-    };
+    const { resolver, calls } = createTrackingDnsResolver({
+        '_mta-sts.sts-arity.example.com:TXT': { data: [['v=STSv1; id=arity1']] },
+        'mail.example.com:A': { data: ['192.0.2.1'] }
+    });
 
     try {
         const connection = await mxConnect({
             target: 'sts-arity.example.com',
             mx: ['mail.example.com'],
-            dnsOptions: { resolve: strictResolver },
+            dnsOptions: { resolve: resolver },
             mtaSts: { enabled: true },
             connectHook(delivery, options, callback) {
                 options.socket = createMockSocket({ remoteAddress: options.host });
@@ -659,22 +644,16 @@ module.exports.mtaStsPolicyResolverUsesTwoArgumentAForm = async test => {
 module.exports.mtaStsPolicyResolverHonoursIgnoreIPv6 = async test => {
     // mailauth falls back to an AAAA lookup for the policy host when the A lookup comes
     // back empty, which would reach for IPv6 on a host that asked never to use it
-    const calls = [];
-    const mockResolver = createMockDnsResolver({
+    const { resolver, calls } = createTrackingDnsResolver({
         '_mta-sts.sts-v6.example.com:TXT': { data: [['v=STSv1; id=v6only1']] },
         'mail.example.com:A': { data: ['192.0.2.1'] }
     });
-    const trackingResolver = (domain, typeOrCallback, maybeCallback) => {
-        const twoArgForm = typeof typeOrCallback === 'function';
-        calls.push({ domain, type: twoArgForm ? 'A' : typeOrCallback });
-        return mockResolver(domain, typeOrCallback, maybeCallback);
-    };
 
     try {
         const connection = await mxConnect({
             target: 'sts-v6.example.com',
             mx: ['mail.example.com'],
-            dnsOptions: { resolve: trackingResolver, ignoreIPv6: true },
+            dnsOptions: { resolve: resolver, ignoreIPv6: true },
             mtaSts: { enabled: true },
             connectHook(delivery, options, callback) {
                 options.socket = createMockSocket({ remoteAddress: options.host });
@@ -688,5 +667,32 @@ module.exports.mtaStsPolicyResolverHonoursIgnoreIPv6 = async test => {
 
     const aaaaCalls = calls.filter(entry => entry.type === 'AAAA');
     test.deepEqual(aaaaCalls, [], 'No AAAA lookup may be issued when ignoreIPv6 is set');
+    test.done();
+};
+
+module.exports.mxOptionNonCanonicalAddressRejected = async test => {
+    // ipaddr.js reads a leading zero as octal, the platform resolver reads it as decimal,
+    // so 0127.0.0.1 is the public 87.0.0.1 to a range check and 127.0.0.1 to the socket.
+    // net.connect would hand such a string to dns.lookup, so the address validated has to
+    // be a canonical literal or it is not the address connected to.
+    for (const address of ['0127.0.0.1', '010.000.000.001', '0169.254.169.254']) {
+        const attempts = [];
+        try {
+            await mxConnect({
+                target: 'octal.example.com',
+                mx: [{ exchange: 'mail.example.com', priority: 10, A: [address], AAAA: [] }],
+                dnsOptions: { blockLocalAddresses: true },
+                connectHook(delivery, options, callback) {
+                    attempts.push(options.host);
+                    options.socket = createMockSocket({ remoteAddress: options.host });
+                    return callback();
+                }
+            });
+            test.ok(false, `Should have rejected ${address}`);
+        } catch (err) {
+            test.equal(err.code, 'InvalidIpAddress', `${address} should be refused`);
+        }
+        test.deepEqual(attempts, [], `no connection may be attempted for ${address}`);
+    }
     test.done();
 };

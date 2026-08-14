@@ -507,3 +507,35 @@ module.exports.aFallbackServfail = async test => {
     }
     test.done();
 };
+
+module.exports.aFallbackKeepsOneEntryAndRecordsBlockedOnce = async test => {
+    // RFC 5321 Section 5.1: the domain is one implicit mail exchanger, so all its addresses
+    // belong to a single entry. Splitting them left a rejected address behind as an empty
+    // entry, which resolveIP then resolved again and rejected a second time.
+    const mockResolver = createMockDnsResolver({
+        'nomx.example.com:MX': { error: createDnsError('ENODATA') },
+        'nomx.example.com:A': { data: ['127.0.0.1', '192.0.2.9'] }
+    });
+
+    const delivery = {
+        domain: 'nomx.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'nomx.example.com',
+        dnsOptions: { resolve: mockResolver, blockLocalAddresses: true }
+    };
+
+    try {
+        await resolveMx(delivery);
+        test.equal(delivery.mx.length, 1, 'the implicit MX must be a single entry');
+        test.deepEqual(delivery.mx[0].A, ['192.0.2.9']);
+        test.deepEqual(
+            delivery.blockedAddresses.map(entry => entry.ip),
+            ['127.0.0.1'],
+            'the rejected address must be recorded exactly once'
+        );
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
+};

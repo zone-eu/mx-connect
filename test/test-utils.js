@@ -56,6 +56,28 @@ function createMockDnsResolver(responses) {
 }
 
 /**
+ * Creates a mock DNS resolver that also records how it was called.
+ *
+ * Returns { resolver, calls }, where each call is { domain, type, args }. `args` is the
+ * argument count the resolver was invoked with, which is what tests asserting the
+ * two-versus-three-argument contract need.
+ *
+ * @param {Object} responses - Same shape as createMockDnsResolver
+ */
+function createTrackingDnsResolver(responses) {
+    const mockResolver = createMockDnsResolver(responses);
+    const calls = [];
+
+    const resolver = function (domain, typeOrCallback, maybeCallback) {
+        const twoArgForm = typeof typeOrCallback === 'function';
+        calls.push({ domain, type: twoArgForm ? 'A' : typeOrCallback, args: twoArgForm ? 2 : 3 });
+        return mockResolver(domain, typeOrCallback, maybeCallback);
+    };
+
+    return { resolver, calls };
+}
+
+/**
  * Creates a DNS error with the specified code.
  */
 function createDnsError(code, message) {
@@ -137,6 +159,7 @@ module.exports = {
     closeServer,
     getFreePort,
     createMockDnsResolver,
+    createTrackingDnsResolver,
     createDnsError,
     createMockSocket,
     createMockConnectHook,

@@ -1,7 +1,7 @@
 'use strict';
 
 const resolveIp = require('../lib/resolve-ip');
-const { createMockDnsResolver, createDnsError } = require('./test-utils');
+const { createMockDnsResolver, createTrackingDnsResolver, createDnsError } = require('./test-utils');
 
 module.exports.dnsError = async test => {
     const mockResolver = createMockDnsResolver({
@@ -275,17 +275,14 @@ module.exports.providedAddressesValidatedWithoutLookup = async test => {
     // Addresses supplied through the mx option are the only ones no DNS lookup
     // produced. They must be used as they are, and still pass validation - this step
     // is the only place any address is checked.
-    const resolverCalls = [];
-    const failingResolver = (domain, typeOrCallback, maybeCallback) => {
-        const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
-        resolverCalls.push(domain);
-        return setImmediate(() => callback(createDnsError('ENOTFOUND')));
-    };
+    // An empty response map answers every lookup with ENOTFOUND, so any lookup at all
+    // would fail this test rather than quietly succeeding
+    const { resolver, calls } = createTrackingDnsResolver({});
 
     const delivery = {
         domain: 'provided.example.com',
         mx: [{ exchange: 'mail.provided.example.com', priority: 10, A: ['127.0.0.1'], AAAA: [] }],
-        dnsOptions: { resolve: failingResolver, blockLocalAddresses: true }
+        dnsOptions: { resolve: resolver, blockLocalAddresses: true }
     };
 
     try {
@@ -295,7 +292,7 @@ module.exports.providedAddressesValidatedWithoutLookup = async test => {
         test.equal(err.code, 'InvalidIpAddress');
         test.ok(err.message.includes('127.0.0.1'));
     }
-    test.deepEqual(resolverCalls, [], 'Caller-supplied addresses must not be looked up again');
+    test.deepEqual(calls, [], 'Caller-supplied addresses must not be looked up again');
     test.done();
 };
 

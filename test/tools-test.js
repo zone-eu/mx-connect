@@ -131,12 +131,14 @@ module.exports.isInvalid = test => {
     test.ok(tools.isInvalid({ dnsOptions: {} }, '224.0.0.1'));
     test.ok(tools.isInvalid({ dnsOptions: {} }, 'ff02::1'));
 
-    // reserved (future-use / documentation) is blocked only when blockReservedNetworks=true
-    test.equal(tools.isInvalid({ dnsOptions: {} }, '240.0.0.1'), false);
-    test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '240.0.0.1'));
-    // documentation ranges (RFC 5737 / 3849) are 'reserved' too - allowed by default
-    test.equal(tools.isInvalid({ dnsOptions: {} }, '192.0.2.1'), false);
-    test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '192.0.2.1'));
+    // reserved is blocked only when blockReservedNetworks=true: future-use, the RFC 5737 /
+    // RFC 3849 documentation ranges and IPv4 benchmarking. These assertions are also what
+    // pins the ipaddr.js range names the policy is written in, so a dependency bump that
+    // renames or reorders a range fails here rather than quietly allowing the address.
+    for (const ip of ['240.0.0.1', '192.0.2.1', '198.18.0.1', '2001:db8::1']) {
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, ip), `${ip} should be blocked with blockReservedNetworks`);
+    }
 
     // link-local, CGNAT, IPv6 unique-local and deprecated site-local are local-scope:
     // only blocked when blockLocalAddresses=true
@@ -237,40 +239,41 @@ module.exports.isInvalidEmbeddedIPv4 = test => {
     test.done();
 };
 
-module.exports.isInvalidRangeNamesArePinned = test => {
-    // The validation policy is expressed as ipaddr.js range() names, so a dependency
-    // bump that renames, splits or reorders a range would silently drop addresses out
-    // of the blocked sets. Pin the names this module relies on so that shows up here
-    // rather than as a hole in production.
-    const ipaddr = require('ipaddr.js');
-    const expected = {
-        '0.0.0.0': 'unspecified',
-        '255.255.255.255': 'broadcast',
-        '224.0.0.1': 'multicast',
-        '127.0.0.1': 'loopback',
-        '10.0.0.1': 'private',
-        '169.254.1.1': 'linkLocal',
-        '100.64.0.1': 'carrierGradeNat',
-        '240.0.0.1': 'reserved',
-        '192.0.2.1': 'reserved',
-        '198.18.0.1': 'reserved',
-        '8.8.8.8': 'unicast',
-        '::1': 'loopback',
-        'fc00::1': 'uniqueLocal',
-        'fe80::1': 'linkLocal',
-        'fec0::1': 'deprecatedSiteLocal',
-        'ff02::1': 'multicast',
-        '100::1': 'discard',
-        '5f00::1': 'segmentRouting',
-        '2001:2::1': 'benchmarking',
-        '2001:3::1': 'amt',
-        '2001:db8::1': 'reserved',
-        '2606:4700:4700::1111': 'unicast'
-    };
+module.exports.isInvalidRejectsNonCanonicalNotations = test => {
+    // Only a canonical literal can be validated safely. ipaddr.js reads a leading zero as
+    // octal while the platform resolver reads it as decimal, so 0127.0.0.1 looks like the
+    // public 87.0.0.1 to the check and resolves to 127.0.0.1 for the connection. Anything
+    // net.isIP does not recognise is also a string net.connect would hand to dns.lookup,
+    // so the address checked would not be the address reached.
+    const bypassAttempts = [
+        '0127.0.0.1', // octal to ipaddr (87.0.0.1), decimal to getaddrinfo (127.0.0.1)
+        '00127.0.0.1',
+        '010.000.000.001', // reaches 10.0.0.1
+        '0172.16.0.1', // reaches 172.16.0.1
+        '172.016.000.001',
+        '0169.254.169.254', // reaches the cloud metadata address
+        '2130706433', // decimal form of 127.0.0.1
+        '0x7f000001',
+        '127.1',
+        '127.0.0.1.', // trailing dot
+        ' 127.0.0.1',
+        '127.0.0.1 ',
+        '[127.0.0.1]',
+        '127.0.0.1:25'
+    ];
 
-    for (const [ip, range] of Object.entries(expected)) {
-        test.equal(ipaddr.parse(ip).range(), range, `${ip} should be classified as "${range}"`);
+    for (const ip of bypassAttempts) {
+        // Refused whatever the options, since the address cannot be judged at all
+        test.ok(tools.isInvalid({ dnsOptions: {} }, ip), `${ip} should be refused by default`);
+        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused with blockLocalAddresses`);
     }
+
+    // Canonical spellings that net.isIP does recognise must still be accepted, including
+    // zone identifiers and the alternate IPv6 notations
+    for (const ip of ['8.8.8.8', '2606:4700:4700::1111', '::ffff:8.8.8.8', '0:0:0:0:0:ffff:808:808']) {
+        test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), false, `${ip} should still be accepted`);
+    }
+    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, 'fe80::1%eth0'), 'a zone identifier must be parsed, not waved through');
 
     test.done();
 };
@@ -303,7 +306,7 @@ module.exports.isInvalidUnparseableAddress = test => {
     // Garbage input must be reported invalid, not throw
     const result = tools.isInvalid({ dnsOptions: {} }, 'not-an-ip');
     test.ok(result);
-    test.ok(result.includes('Failed parsing'));
+    test.ok(result.includes('not in a recognised notation'));
     test.done();
 };
 
