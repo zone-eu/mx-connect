@@ -810,3 +810,42 @@ module.exports.blockedAddressRefusalStaysPermanent = async test => {
     }
     test.done();
 };
+
+module.exports.mtaStsPolicyHostAddressPassesFilter = async test => {
+    // The other MTA-STS tests either use a cached policy or have the policy host address
+    // rejected, so none of them proves an accepted address still reaches mailauth. Without
+    // this, a filter that rejected everything would silently stop policies being fetched at
+    // all and every one of those tests would still pass. The policy host resolves to
+    // loopback and the options do not block it, so the fetch is attempted and refused
+    // locally, which keeps the test offline and immediate.
+    const { resolver, calls } = createTrackingDnsResolver({
+        '_mta-sts.pass.example.com:TXT': { data: [['v=STSv1; id=pass1']] },
+        'mta-sts.pass.example.com:A': { data: ['127.0.0.1'] },
+        'mail.example.com:A': { data: ['192.0.2.1'] },
+        'mail.example.com:AAAA': { error: { code: 'ENODATA' } }
+    });
+
+    let seenDelivery = null;
+    try {
+        const connection = await mxConnect({
+            target: 'pass.example.com',
+            mx: ['mail.example.com'],
+            dnsOptions: { resolve: resolver },
+            mtaSts: { enabled: true },
+            connectHook(delivery, options, callback) {
+                seenDelivery = delivery;
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.ok(connection.socket);
+        test.equal(connection.host, '192.0.2.1');
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.pass.example.com');
+    test.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
+    test.deepEqual((seenDelivery && seenDelivery.blockedAddresses) || [], [], 'An allowed policy host address must not be filtered out');
+    test.done();
+};
