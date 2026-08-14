@@ -271,6 +271,88 @@ module.exports.entryWithoutExchangeIsSkipped = async test => {
     test.done();
 };
 
+module.exports.providedAddressesValidatedWithoutLookup = async test => {
+    // Addresses supplied through the mx option are the only ones no DNS lookup
+    // produced. They must be used as they are, and still pass validation - this step
+    // is the only place any address is checked.
+    const resolverCalls = [];
+    const failingResolver = (domain, typeOrCallback, maybeCallback) => {
+        const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
+        resolverCalls.push(domain);
+        return setImmediate(() => callback(createDnsError('ENOTFOUND')));
+    };
+
+    const delivery = {
+        domain: 'provided.example.com',
+        mx: [{ exchange: 'mail.provided.example.com', priority: 10, A: ['127.0.0.1'], AAAA: [] }],
+        dnsOptions: { resolve: failingResolver, blockLocalAddresses: true }
+    };
+
+    try {
+        await resolveIp(delivery);
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'InvalidIpAddress');
+        test.ok(err.message.includes('127.0.0.1'));
+    }
+    test.deepEqual(resolverCalls, [], 'Caller-supplied addresses must not be looked up again');
+    test.done();
+};
+
+module.exports.providedAddressesKeptWhenValid = async test => {
+    // A caller-supplied address that passes validation survives untouched, and an
+    // entry that needs resolving in the same set is still resolved
+    const mockResolver = createMockDnsResolver({
+        'lookup.example.com:A': { data: ['192.0.2.20'] },
+        'lookup.example.com:AAAA': { error: createDnsError('ENODATA') }
+    });
+
+    try {
+        const delivery = await resolveIp({
+            domain: 'mixed.example.com',
+            mx: [
+                { exchange: 'given.example.com', priority: 10, A: ['192.0.2.10'], AAAA: [] },
+                { exchange: 'lookup.example.com', priority: 20, A: [], AAAA: [] }
+            ],
+            dnsOptions: { resolve: mockResolver }
+        });
+        test.deepEqual(delivery.mx[0].A, ['192.0.2.10'], 'The supplied address must not be replaced by a lookup');
+        test.deepEqual(delivery.mx[1].A, ['192.0.2.20']);
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
+};
+
+module.exports.blockedAddressesRecordedOnDelivery = async test => {
+    // Filtering that leaves other addresses usable is otherwise invisible: the host
+    // simply becomes unreachable later and looks like a network failure. Record what
+    // policy removed so the two can be told apart.
+    const mockResolver = createMockDnsResolver({
+        'mail.mixed.example.com:A': { data: ['127.0.0.1', '192.0.2.9'] },
+        'mail.mixed.example.com:AAAA': { data: ['64:ff9b::7f00:1'] }
+    });
+
+    try {
+        const delivery = await resolveIp({
+            domain: 'mixed.example.com',
+            mx: [{ exchange: 'mail.mixed.example.com', priority: 10, A: [], AAAA: [] }],
+            dnsOptions: { resolve: mockResolver, blockLocalAddresses: true }
+        });
+        test.deepEqual(delivery.mx[0].A, ['192.0.2.9'], 'Delivery continues over the address that passed');
+        test.deepEqual(delivery.mx[0].AAAA, []);
+        test.deepEqual(
+            delivery.blockedAddresses.map(entry => entry.ip),
+            ['127.0.0.1', '64:ff9b::7f00:1']
+        );
+        test.equal(delivery.blockedAddresses[0].exchange, 'mail.mixed.example.com');
+        test.ok(delivery.blockedAddresses[1].reason.includes('127.0.0.1'), 'A NAT64 address should be reported by the IPv4 address it carries');
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
+};
+
 module.exports.resolverReturningUndefinedTreatedAsEmpty = async test => {
     // A custom resolver that calls back without a result list must be treated
     // as an empty answer, not crash

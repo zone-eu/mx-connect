@@ -330,18 +330,29 @@ module.exports.customResolverCalledWithCorrectArgs = async test => {
 
 module.exports.ipTargetBlockedLocalAddress = async test => {
     // An IP target in a blocked range must be rejected before any connection
+    const delivery = {
+        domain: '127.0.0.1',
+        isIp: true,
+        isPunycode: false,
+        decodedDomain: '127.0.0.1',
+        dnsOptions: { blockLocalAddresses: true }
+    };
+
     try {
-        await resolveMx({
-            domain: '127.0.0.1',
-            isIp: true,
-            isPunycode: false,
-            decodedDomain: '127.0.0.1',
-            dnsOptions: { blockLocalAddresses: true }
-        });
+        await resolveMx(delivery);
         test.ok(false, 'Should have rejected');
     } catch (err) {
         test.equal(err.category, 'dns');
         test.ok(err.message.includes('127.0.0.1'));
+        // Callers need to tell this apart from a resolution failure, and the address
+        // was given to us rather than resolved, so the error must not blame an MX lookup
+        test.equal(err.code, 'InvalidIpAddress');
+        test.ok(err.message.includes('given as the delivery target'));
+        test.ok(!err.message.includes('resolved for the Mail Exchange'), 'A literal target must not be reported as an MX lookup result');
+        test.deepEqual(
+            delivery.blockedAddresses.map(entry => entry.ip),
+            ['127.0.0.1']
+        );
     }
     test.done();
 };

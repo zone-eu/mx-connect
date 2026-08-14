@@ -138,10 +138,22 @@ module.exports.isInvalid = test => {
     test.equal(tools.isInvalid({ dnsOptions: {} }, '192.0.2.1'), false);
     test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '192.0.2.1'));
 
-    // link-local, CGNAT and IPv6 unique-local are local-scope: only blocked when blockLocalAddresses=true
-    for (const ip of ['169.254.1.1', '100.64.0.1', 'fe80::1', 'fc00::1']) {
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false);
-        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip));
+    // link-local, CGNAT, IPv6 unique-local and deprecated site-local are local-scope:
+    // only blocked when blockLocalAddresses=true
+    for (const ip of ['169.254.1.1', '100.64.0.1', 'fe80::1', 'fc00::1', 'fec0::1']) {
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be blocked with blockLocalAddresses`);
+    }
+
+    // never a mail host, whatever the options: RFC 6666 discard and RFC 9602 segment routing
+    for (const ip of ['100::1', '5f00::1']) {
+        test.ok(tools.isInvalid({ dnsOptions: {} }, ip), `${ip} should always be blocked`);
+    }
+
+    // IPv6 benchmarking and AMT follow blockReservedNetworks, like the IPv4 ranges do
+    for (const ip of ['2001:2::1', '2001:3::1']) {
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, ip), `${ip} should be blocked with blockReservedNetworks`);
     }
 
     // IPv6 loopback is blocked with blockLocalAddresses, allowed without
@@ -172,6 +184,93 @@ module.exports.isInvalid = test => {
     // alternate notations of the same mapped address are handled identically
     test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::FFFF:127.0.0.1'));
     test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0:0:0:0:0:ffff:7f00:1'));
+
+    test.done();
+};
+
+module.exports.isInvalidEmbeddedIPv4 = test => {
+    // IPv6 transition mechanisms carry an IPv4 address that the connection actually
+    // reaches (via NAT64/CLAT, 6to4 relay or Teredo tunnel), so each is judged as the
+    // IPv4 address it carries rather than on its own IPv6 range. Every address below
+    // carries 127.0.0.1: NAT64 well-known prefix, RFC 6145 translated, 6to4, Teredo
+    // (client address, stored with every bit flipped), Teredo (server address) and both
+    // spellings of the deprecated IPv4-compatible form.
+    const loopbackCarriers = [
+        '64:ff9b::7f00:1',
+        '::ffff:0:7f00:1',
+        '2002:7f00:1::',
+        '2001:0:4136:e378:8000:63bf:80ff:fffe',
+        '2001:0:7f00:1:8000:63bf:f7f7:f7f7',
+        '::7f00:1',
+        '::127.0.0.1'
+    ];
+    for (const ip of loopbackCarriers) {
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        const result = tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip);
+        test.ok(result, `${ip} carries 127.0.0.1 and should be blocked with blockLocalAddresses`);
+        test.ok(result.includes('127.0.0.1'), `${ip} should name the carried IPv4 address in the error`);
+    }
+
+    // The same mechanisms carrying a public IPv4 address stay deliverable. This matters
+    // most for the NAT64 well-known prefix: on an IPv6-only network DNS64 synthesizes
+    // exactly these records for every IPv4-only mail host, so blocking the prefix
+    // wholesale would break delivery to those domains entirely.
+    const publicCarriers = ['64:ff9b::8.8.8.8', '::ffff:0:8.8.8.8', '2002:808:808::', '2001:0:4136:e378:8000:63bf:f7f7:f7f7', '::8.8.8.8'];
+    for (const ip of publicCarriers) {
+        test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), false, `${ip} carries a public address and should be deliverable`);
+    }
+
+    // Addresses that can never be a mail host are rejected whatever the options, and a
+    // transition envelope must not be a way around that
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '64:ff9b::ffff:ffff'), 'NAT64 carrying the broadcast address should always be blocked');
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '64:ff9b::'), 'NAT64 carrying the unspecified address should always be blocked');
+    test.ok(tools.isInvalid({ dnsOptions: {} }, '2002:e000:1::'), '6to4 carrying a multicast address should always be blocked');
+
+    // RFC 8215 reserves 64:ff9b:1::/48 for locally chosen NAT64 prefixes. The embedded
+    // address offset depends on that local prefix length, so it cannot be read from the
+    // address and the whole prefix stays a blanket block under blockLocalAddresses.
+    test.equal(tools.isInvalid({ dnsOptions: {} }, '64:ff9b:1::7f00:1'), false);
+    const localUse = tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '64:ff9b:1::7f00:1');
+    test.ok(localUse);
+    test.ok(localUse.includes('64:ff9b:1::/48'), 'the local-use NAT64 rejection should name the prefix');
+
+    test.done();
+};
+
+module.exports.isInvalidRangeNamesArePinned = test => {
+    // The validation policy is expressed as ipaddr.js range() names, so a dependency
+    // bump that renames, splits or reorders a range would silently drop addresses out
+    // of the blocked sets. Pin the names this module relies on so that shows up here
+    // rather than as a hole in production.
+    const ipaddr = require('ipaddr.js');
+    const expected = {
+        '0.0.0.0': 'unspecified',
+        '255.255.255.255': 'broadcast',
+        '224.0.0.1': 'multicast',
+        '127.0.0.1': 'loopback',
+        '10.0.0.1': 'private',
+        '169.254.1.1': 'linkLocal',
+        '100.64.0.1': 'carrierGradeNat',
+        '240.0.0.1': 'reserved',
+        '192.0.2.1': 'reserved',
+        '198.18.0.1': 'reserved',
+        '8.8.8.8': 'unicast',
+        '::1': 'loopback',
+        'fc00::1': 'uniqueLocal',
+        'fe80::1': 'linkLocal',
+        'fec0::1': 'deprecatedSiteLocal',
+        'ff02::1': 'multicast',
+        '100::1': 'discard',
+        '5f00::1': 'segmentRouting',
+        '2001:2::1': 'benchmarking',
+        '2001:3::1': 'amt',
+        '2001:db8::1': 'reserved',
+        '2606:4700:4700::1111': 'unicast'
+    };
+
+    for (const [ip, range] of Object.entries(expected)) {
+        test.equal(ipaddr.parse(ip).range(), range, `${ip} should be classified as "${range}"`);
+    }
 
     test.done();
 };

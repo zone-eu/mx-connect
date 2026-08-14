@@ -505,3 +505,188 @@ module.exports.mtaStsNoPolicyNoCacheConnects = async test => {
     }
     test.done();
 };
+
+module.exports.mxOptionIpLiteralValidated = async test => {
+    // Addresses passed through the mx option skip MX resolution, and used to skip
+    // validation with it, which left blockLocalAddresses silently inert for exactly
+    // the input an operator is most likely to hand-craft
+    const attempts = [];
+
+    try {
+        await mxConnect({
+            target: 'literal.example.com',
+            mx: ['127.0.0.1'],
+            dnsOptions: { blockLocalAddresses: true },
+            connectHook(delivery, options, callback) {
+                attempts.push(options.host);
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'InvalidIpAddress');
+        test.equal(err.category, 'dns');
+        test.ok(err.message.includes('127.0.0.1'));
+    }
+    test.deepEqual(attempts, [], 'No connection may be attempted to a blocked address');
+    test.done();
+};
+
+module.exports.mxOptionPreResolvedAddressValidated = async test => {
+    // Same for addresses supplied on a resolved MX object, including the transition
+    // forms that reach an internal IPv4 host through an outwardly public IPv6 address
+    for (const address of ['127.0.0.1', '64:ff9b::7f00:1']) {
+        try {
+            await mxConnect({
+                target: 'literal.example.com',
+                mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: [address] }],
+                dnsOptions: { blockLocalAddresses: true },
+                connectHook(delivery, options, callback) {
+                    options.socket = createMockSocket({ remoteAddress: options.host });
+                    return callback();
+                }
+            });
+            test.ok(false, `Should have rejected ${address}`);
+        } catch (err) {
+            test.equal(err.code, 'InvalidIpAddress', `${address} should be rejected as invalid`);
+            test.ok(err.message.includes('127.0.0.1'), `${address} should be reported by the address it reaches`);
+        }
+    }
+    test.done();
+};
+
+module.exports.mtaStsPolicyHostAddressValidated = async test => {
+    // Fetching an MTA-STS policy means an HTTPS request to whatever mta-sts.<domain>
+    // resolves to, before any MX record is considered. A domain must not be able to
+    // publish a policy host pointing at an internal address and have every delivery
+    // attempt connect there while blockLocalAddresses is enabled.
+    const mockResolver = createMockDnsResolver({
+        '_mta-sts.sts-ssrf.example.com:TXT': { data: [['v=STSv1; id=ssrf1']] },
+        'mta-sts.sts-ssrf.example.com:A': { data: ['169.254.169.254'] },
+        'mail.example.com:A': { data: ['192.0.2.1'] },
+        'mail.example.com:AAAA': { error: { code: 'ENODATA' } }
+    });
+
+    const logEntries = [];
+    let seenDelivery = null;
+
+    try {
+        const connection = await mxConnect({
+            target: 'sts-ssrf.example.com',
+            mx: ['mail.example.com'],
+            dnsOptions: { resolve: mockResolver, blockLocalAddresses: true },
+            mtaSts: { enabled: true, logger: entry => logEntries.push(entry) },
+            connectHook(delivery, options, callback) {
+                seenDelivery = delivery;
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.ok(connection.socket);
+        test.equal(connection.host, '192.0.2.1');
+        // With the policy host unusable no policy is fetched, so nothing is enforced
+        test.equal(connection.policyMatch.mode, 'none');
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    const blocked = (seenDelivery && seenDelivery.blockedAddresses) || [];
+    test.deepEqual(
+        blocked.map(entry => entry.ip),
+        ['169.254.169.254'],
+        'The policy host address should be recorded as blocked'
+    );
+    test.equal(blocked[0].exchange, 'mta-sts.sts-ssrf.example.com');
+
+    const skipped = logEntries.filter(entry => entry.msg === 'Skipped MTA-STS policy host address');
+    test.equal(skipped.length, 1);
+    test.equal(skipped[0].host, '169.254.169.254');
+    test.done();
+};
+
+module.exports.mtaStsPolicyResolverUsesTwoArgumentAForm = async test => {
+    // mailauth asks for A records explicitly, while custom resolvers are promised that
+    // A lookups always arrive in the two-argument form. A resolver implementing only
+    // that form must not be left waiting for a callback that never comes.
+    const calls = [];
+    const responses = {
+        '_mta-sts.sts-arity.example.com:TXT': [['v=STSv1; id=arity1']],
+        'mail.example.com:A': ['192.0.2.1']
+    };
+    const strictResolver = (domain, typeOrCallback, maybeCallback) => {
+        const twoArgForm = typeof typeOrCallback === 'function';
+        const type = twoArgForm ? 'A' : typeOrCallback;
+        const callback = twoArgForm ? typeOrCallback : maybeCallback;
+        calls.push({ domain, type, args: twoArgForm ? 2 : 3 });
+
+        const data = responses[`${domain}:${type}`];
+        if (!data) {
+            const err = new Error('ENOTFOUND');
+            err.code = 'ENOTFOUND';
+            return setImmediate(() => callback(err));
+        }
+        return setImmediate(() => callback(null, data));
+    };
+
+    try {
+        const connection = await mxConnect({
+            target: 'sts-arity.example.com',
+            mx: ['mail.example.com'],
+            dnsOptions: { resolve: strictResolver },
+            mtaSts: { enabled: true },
+            connectHook(delivery, options, callback) {
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.ok(connection.socket);
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.sts-arity.example.com');
+    test.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
+    test.equal(policyHostCalls[0].type, 'A');
+    test.equal(policyHostCalls[0].args, 2, 'A lookups must use the two-argument resolver form');
+
+    const txtCalls = calls.filter(entry => entry.type === 'TXT');
+    test.equal(txtCalls.length, 1);
+    test.equal(txtCalls[0].args, 3, 'Other record types keep the three-argument form');
+    test.done();
+};
+
+module.exports.mtaStsPolicyResolverHonoursIgnoreIPv6 = async test => {
+    // mailauth falls back to an AAAA lookup for the policy host when the A lookup comes
+    // back empty, which would reach for IPv6 on a host that asked never to use it
+    const calls = [];
+    const mockResolver = createMockDnsResolver({
+        '_mta-sts.sts-v6.example.com:TXT': { data: [['v=STSv1; id=v6only1']] },
+        'mail.example.com:A': { data: ['192.0.2.1'] }
+    });
+    const trackingResolver = (domain, typeOrCallback, maybeCallback) => {
+        const twoArgForm = typeof typeOrCallback === 'function';
+        calls.push({ domain, type: twoArgForm ? 'A' : typeOrCallback });
+        return mockResolver(domain, typeOrCallback, maybeCallback);
+    };
+
+    try {
+        const connection = await mxConnect({
+            target: 'sts-v6.example.com',
+            mx: ['mail.example.com'],
+            dnsOptions: { resolve: trackingResolver, ignoreIPv6: true },
+            mtaSts: { enabled: true },
+            connectHook(delivery, options, callback) {
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.ok(connection.socket);
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    const aaaaCalls = calls.filter(entry => entry.type === 'AAAA');
+    test.deepEqual(aaaaCalls, [], 'No AAAA lookup may be issued when ignoreIPv6 is set');
+    test.done();
+};
