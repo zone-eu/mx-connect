@@ -319,3 +319,22 @@ module.exports.isInvalidLocalInterfaceAddress = test => {
     test.ok(result.includes('local interface'));
     test.done();
 };
+
+module.exports.isInvalidIgnoreIPv6 = test => {
+    // ignoreIPv6 is about which addresses may be used, not only which lookups are worth
+    // making, so it has to be decided here as well. Skipping AAAA queries alone leaves an
+    // address handed over through the mx option unfiltered, since no lookup produced it.
+    for (const ip of ['2606:4700:4700::1111', '::1', 'fe80::1', '64:ff9b::8.8.8.8', '::ffff:8.8.8.8']) {
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed without ignoreIPv6`);
+        const result = tools.isInvalid({ dnsOptions: { ignoreIPv6: true } }, ip);
+        test.ok(result, `${ip} should be refused with ignoreIPv6`);
+        test.ok(result.includes('ignoreIPv6'), `${ip} should be refused by name so the cause is obvious`);
+    }
+
+    // IPv4 is unaffected
+    for (const ip of ['8.8.8.8', '192.0.2.1']) {
+        test.equal(tools.isInvalid({ dnsOptions: { ignoreIPv6: true } }, ip), false, `${ip} should be unaffected by ignoreIPv6`);
+    }
+
+    test.done();
+};

@@ -62,17 +62,22 @@ module.exports.ipv6Literal = async test => {
     test.done();
 };
 
-module.exports.rejectIpv6Literal = async test => {
+module.exports.ipv6LiteralParsedRegardlessOfIgnoreIPv6 = async test => {
+    // Parsing the target and deciding whether its address may be used are separate jobs.
+    // Refusing here too rejected deliveries whose target was never going to be the
+    // destination, such as an IPv6 target with the mx option supplying the real host, so
+    // ignoreIPv6 is left to tools.isInvalid, which every address reaches.
     try {
-        await formatAddress({
+        const delivery = await formatAddress({
             domain: '[IPv6:2001:db8:1ff::a0b:dbd0]',
             dnsOptions: {
                 ignoreIPv6: true
             }
         });
-        test.ok(false, 'Should have rejected');
+        test.equal(delivery.isIp, true);
+        test.equal(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
     } catch (err) {
-        test.equal(err.category, 'dns');
+        test.ifError(err);
     }
     test.done();
 };

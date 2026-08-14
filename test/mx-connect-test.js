@@ -696,3 +696,117 @@ module.exports.mxOptionNonCanonicalAddressRejected = async test => {
     }
     test.done();
 };
+
+module.exports.mxOptionIPv6RejectedWhenIgnoreIPv6 = async test => {
+    // Skipping AAAA lookups does nothing for an address the caller supplied directly, so
+    // ignoreIPv6 used to be silently inert for the mx option and the delivery went out
+    // over IPv6 anyway
+    // The three shapes an IPv6 address can arrive in through the mx option, each reaching
+    // a different branch: a bare string, pre-resolved AAAA, and an IPv6 literal exchange
+    const shapes = [
+        ['string entry', ['2606:4700:4700::1111']],
+        ['pre-resolved AAAA', [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: ['2606:4700:4700::1111'] }]],
+        ['IPv6 literal exchange', [{ exchange: '2606:4700:4700::1111', priority: 10 }]]
+    ];
+
+    for (const [label, mx] of shapes) {
+        const attempts = [];
+        try {
+            await mxConnect({
+                target: 'v6.example.com',
+                mx,
+                dnsOptions: { ignoreIPv6: true },
+                connectHook(delivery, options, callback) {
+                    attempts.push(options.host);
+                    options.socket = createMockSocket({ remoteAddress: options.host });
+                    return callback();
+                }
+            });
+            test.ok(false, `Should have rejected an IPv6 address given as ${label}`);
+        } catch (err) {
+            test.equal(err.code, 'InvalidIpAddress', `${label} should be refused as an invalid address`);
+        }
+        test.deepEqual(attempts, [], `No IPv6 connection may be attempted for ${label}`);
+    }
+
+    // An entry that also carries an IPv4 address stays deliverable over IPv4, and the
+    // address dropped on the way has to be visible rather than silently filtered
+    let seenDelivery = null;
+    try {
+        const connection = await mxConnect({
+            target: 'v6.example.com',
+            mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: ['2606:4700:4700::1111'] }],
+            dnsOptions: { ignoreIPv6: true },
+            connectHook(delivery, options, callback) {
+                seenDelivery = delivery;
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.equal(connection.host, '192.0.2.1', 'Delivery must fall to the IPv4 address rather than fail');
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    const blocked = (seenDelivery && seenDelivery.blockedAddresses) || [];
+    test.deepEqual(
+        blocked.map(entry => entry.ip),
+        ['2606:4700:4700::1111'],
+        'The dropped IPv6 address must be recorded'
+    );
+    test.ok(blocked[0].reason.includes('ignoreIPv6'), 'The record must name the option that dropped it');
+
+    test.done();
+};
+
+module.exports.ignoreIPv6TargetRefusedAndRetryable = async test => {
+    // An IPv6 target is refused by the address check rather than while parsing, so the
+    // error names the address and carries a code. It is also temporary: nothing is wrong
+    // with the host, this sender just does not use IPv6, so the message waits for the
+    // setting to change instead of bouncing.
+    try {
+        await mxConnect({ target: '[IPv6:2001:db8:1ff::a0b:dbd0]', dnsOptions: { ignoreIPv6: true } });
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'InvalidIpAddress');
+        test.equal(err.category, 'dns');
+        test.equal(err.temporary, true, 'A local transport policy must not bounce the message');
+        test.ok(err.message.includes('2001:db8:1ff::a0b:dbd0'));
+        test.ok(err.message.includes('given as the delivery target'), 'The target must not be reported as an MX lookup result');
+    }
+
+    // An IPv6 target that is never used as a destination, because the mx option supplies
+    // the real host, must not be refused at all
+    try {
+        const connection = await mxConnect({
+            target: '[IPv6:2001:db8:1ff::a0b:dbd0]',
+            mx: ['192.0.2.1'],
+            dnsOptions: { ignoreIPv6: true },
+            connectHook(delivery, options, callback) {
+                options.socket = createMockSocket({ remoteAddress: options.host });
+                return callback();
+            }
+        });
+        test.equal(connection.host, '192.0.2.1', 'An unused IPv6 target must not block delivery');
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
+};
+
+module.exports.blockedAddressRefusalStaysPermanent = async test => {
+    // A refusal that is a property of the destination stays permanent: retrying will not
+    // make a loopback MX deliverable
+    try {
+        await mxConnect({
+            target: 'local.example.com',
+            mx: ['127.0.0.1'],
+            dnsOptions: { blockLocalAddresses: true }
+        });
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'InvalidIpAddress');
+        test.ok(!err.temporary, 'A blocked destination must not be retried');
+    }
+    test.done();
+};
