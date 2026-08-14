@@ -371,3 +371,25 @@ module.exports.resolverReturningUndefinedTreatedAsEmpty = async test => {
     }
     test.done();
 };
+
+module.exports.entryWithoutAddressArrays = async test => {
+    // An MX entry need not arrive carrying A/AAAA arrays. mx-connect always supplies them,
+    // but this step is driven directly too, and the lookups used to be what created them.
+    const mockResolver = createMockDnsResolver({
+        'mail.bare.example.com:A': { data: ['192.0.2.30'] },
+        'mail.bare.example.com:AAAA': { data: ['2606:4700:4700::1111'] }
+    });
+
+    try {
+        const delivery = await resolveIp({
+            domain: 'bare.example.com',
+            mx: [{ exchange: 'mail.bare.example.com', priority: 10 }],
+            dnsOptions: { resolve: mockResolver }
+        });
+        test.deepEqual(delivery.mx[0].A, ['192.0.2.30']);
+        test.deepEqual(delivery.mx[0].AAAA, ['2606:4700:4700::1111']);
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
+};
