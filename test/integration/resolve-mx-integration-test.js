@@ -2,20 +2,18 @@
 
 const resolveMx = require('../../lib/resolve-mx');
 
-module.exports.realDnsLookup = test => {
-    resolveMx({
-        domain: 'kreata.ee',
-        isIp: false,
-        isPunycode: false,
-        decodedDomain: 'kreata.ee'
-    })
-        .then(delivery => {
-            test.ok(delivery.mx.length > 1);
-            test.equal(delivery.mx[0].exchange, 'aspmx.l.google.com');
-            test.done();
-        })
-        .catch(err => {
-            test.ifError(err);
-            test.done();
+module.exports.realDnsLookup = async test => {
+    try {
+        const delivery = await resolveMx({
+            domain: 'kreata.ee',
+            isIp: false,
+            isPunycode: false,
+            decodedDomain: 'kreata.ee'
         });
+        test.ok(delivery.mx.length > 1);
+        test.equal(delivery.mx[0].exchange, 'aspmx.l.google.com');
+    } catch (err) {
+        test.ifError(err);
+    }
+    test.done();
 };
