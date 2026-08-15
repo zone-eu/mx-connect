@@ -22,8 +22,11 @@ jobs:
                   cache: npm
             - run: npm ci
             - run: npm run lint
+            # Covers the socket layer too, against a listener the suite starts on a loopback
+            # high port, so nothing here needs the outbound port 25 that runners block
             - run: npm run test:unit
-            # The integration suite connects only to a local listener on a high port, so it
-            # runs here too. It still resolves a handful of real domains, so a failure can
-            # also mean DNS or a published MTA-STS policy changed rather than a code fault.
+            # Real DNS and a real MTA-STS policy fetch, which no unit test can cover. Kept
+            # out of the blocking path because a failure can equally mean someone changed a
+            # published record, and that should not stop an unrelated pull request.
             - run: npm run test:integration
+              continue-on-error: true

@@ -9,6 +9,7 @@ const {
     createFailingConnectHook,
     createTrackingConnectHook,
     startServer,
+    startGreetingServer,
     closeServer,
     getFreePort
 } = require('./test-utils');
@@ -671,5 +672,35 @@ module.exports.localAddressKeptForMatchingFamily = async test => {
     } catch (err) {
         test.ifError(err);
     }
+    test.done();
+};
+
+module.exports.connectedSocketCarriesData = async test => {
+    // The other socket tests assert that a connection was established; this one asserts the
+    // socket is actually usable, by reading the greeting the listener sends. It runs against
+    // a local listener rather than a real MX on port 25, which hosted CI runners block.
+    const server = await startGreetingServer();
+    const { port } = server.address();
+
+    try {
+        const delivery = await getConnection({
+            domain: 'mx-connect.test',
+            decodedDomain: 'mx-connect.test',
+            port,
+            mx: [{ exchange: 'mx-connect.test', priority: 10, A: ['127.0.0.1'], AAAA: [] }]
+        });
+        test.ok(delivery.socket);
+        test.equal(delivery.host, '127.0.0.1');
+        test.equal(delivery.port, port);
+        test.equal(delivery.hostname, 'mx-connect.test');
+
+        const greeting = await new Promise(resolve => delivery.socket.once('data', chunk => resolve(chunk.toString())));
+        test.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
+        delivery.socket.destroy();
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    await closeServer(server);
     test.done();
 };

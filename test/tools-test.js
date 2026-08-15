@@ -343,28 +343,25 @@ module.exports.isInvalidLocalNat64Prefixes = test => {
     // RFC 6052 also allows a NAT64 prefix taken from a network's own address space, which
     // nothing in the address marks as one. Only the operator knows, so they can declare it
     // and have the carried address checked like any other.
-    const ipaddr = require('ipaddr.js');
+    //
+    // The addresses below are written out rather than generated. Building them with the same
+    // loop the implementation uses would move a wrong offset into the expected value too,
+    // and the test would pass either way. Each one follows the worked example in RFC 6052
+    // section 2.4, which embeds 192.0.2.33 as 2001:db8:122:344::192.0.2.33 at /96 and as
+    // 2001:db8:122:344:c0:2:2100:: at /64, rebased onto a public prefix and carrying
+    // 127.0.0.1 (0x7f 0x00 0x00 0x01) so that blockLocalAddresses is what refuses it.
+    const vectors = [
+        { cidr: '2a01:4f8::/32', loopback: '2a01:4f8:7f00:1::', publicHost: '2a01:4f8:808:808::' },
+        { cidr: '2a01:4f8:c1::/40', loopback: '2a01:4f8:7f:0:1::', publicHost: '2a01:4f8:8:808:8::' },
+        { cidr: '2a01:4f8:c17::/48', loopback: '2a01:4f8:c17:7f00:0:100::', publicHost: '2a01:4f8:c17:808:8:800::' },
+        { cidr: '2a01:4f8:c17:b8f::/56', loopback: '2a01:4f8:c17:b7f:0:1::', publicHost: '2a01:4f8:c17:b08:8:808::' },
+        { cidr: '2a01:4f8:c17:b8f::/64', loopback: '2a01:4f8:c17:b8f:7f:0:100:0', publicHost: '2a01:4f8:c17:b8f:8:808:800:0' },
+        { cidr: '2a01:4f8:c17:b8f::/96', loopback: '2a01:4f8:c17:b8f::7f00:1', publicHost: '2a01:4f8:c17:b8f::808:808' }
+    ];
 
-    // Build vectors per RFC 6052 section 2.2 rather than by hand: the four address bytes
-    // follow the prefix, stepping over the reserved byte 8
-    const embed = (base, prefixLen, v4) => {
-        const bytes = ipaddr.parse(base).toByteArray();
-        const octets = v4.split('.').map(Number);
-        let taken = 0;
-        for (let i = prefixLen / 8; taken < 4 && i < bytes.length; i++) {
-            if (i !== 8) {
-                bytes[i] = octets[taken++];
-            }
-        }
-        return ipaddr.fromByteArray(bytes).toString();
-    };
-
-    for (const prefixLen of [32, 40, 48, 56, 64, 96]) {
-        const base = '2a01:4f8::';
-        const cidr = `${base}/${prefixLen}`;
+    for (const { cidr, loopback, publicHost } of vectors) {
         const options = { blockLocalAddresses: true, nat64Prefixes: [cidr] };
 
-        const loopback = embed(base, prefixLen, '127.0.0.1');
         const result = tools.isInvalid({ dnsOptions: options }, loopback);
         test.ok(result, `${cidr} carrying 127.0.0.1 should be refused`);
         test.ok(result.includes('127.0.0.1'), `${cidr} should name the carried address`);
@@ -373,11 +370,7 @@ module.exports.isInvalidLocalNat64Prefixes = test => {
         test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, loopback), false, `${cidr} cannot be detected unless declared`);
 
         // A public address behind the same prefix stays deliverable
-        test.equal(
-            tools.isInvalid({ dnsOptions: options }, embed(base, prefixLen, '8.8.8.8')),
-            false,
-            `${cidr} carrying a public address should be deliverable`
-        );
+        test.equal(tools.isInvalid({ dnsOptions: options }, publicHost), false, `${cidr} carrying a public address should be deliverable`);
     }
 
     // Addresses outside the declared prefix are untouched

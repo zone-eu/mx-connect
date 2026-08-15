@@ -7,30 +7,27 @@ const net = require('net');
  * Starts a TCP server on a random loopback port for real-socket tests.
  * Incoming sockets are destroyed immediately so closeServer() never hangs.
  */
-function startServer() {
+function startServer(onConnection = socket => socket.destroy()) {
     return new Promise(resolve => {
-        const server = net.createServer(socket => socket.destroy());
+        const server = net.createServer(onConnection);
         server.listen(0, '127.0.0.1', () => resolve(server));
     });
 }
 
 /**
  * Starts a TCP server on a random loopback port that greets each connection the way an
- * SMTP server would.
+ * SMTP server would, so a test can watch data actually arrive on the socket.
  *
- * Integration tests use this instead of dialling someone else's mail server on port 25.
- * What they exercise is this library's connection handling, not the internet, and a real
- * MX makes them depend on a port that hosted CI runners block outright.
+ * This is what tests connect to instead of dialling someone else's mail server on port 25:
+ * what they exercise is this library's connection handling, not the internet, and a real MX
+ * makes them depend on a port that hosted CI runners block outright.
  */
-function startGreetingServer(greeting = '220 mx-connect.test ESMTP ready\r\n') {
-    return new Promise(resolve => {
-        const server = net.createServer(socket => {
-            // The client hangs up as soon as it has read the greeting, so a write or reset
-            // racing that is expected rather than a failure
-            socket.on('error', () => false);
-            socket.write(greeting);
-        });
-        server.listen(0, '127.0.0.1', () => resolve(server));
+function startGreetingServer() {
+    return startServer(socket => {
+        // The client hangs up as soon as it has read the greeting, so a write or reset
+        // racing that is expected rather than a failure
+        socket.on('error', () => false);
+        socket.write('220 mx-connect.test ESMTP ready\r\n');
     });
 }
 
