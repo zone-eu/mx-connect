@@ -40,6 +40,7 @@
     "homepage": "https://github.com/zone-eu/mx-connect#readme",
     "devDependencies": {
         "@eslint/js": "10.0.1",
+        "eslint": "10.8.1",
         "eslint-config-prettier": "10.1.8",
         "globals": "17.11.0",
         "prettier": "3.9.6"
@@ -47,6 +48,6 @@
     "dependencies": {
         "ipaddr.js": "2.5.0",
         "mailauth": "5.0.1",
-        "punycode": "^2.3.1"
+        "punycode": "2.3.1"
     }
 }
