@@ -388,3 +388,35 @@ module.exports.isInvalidLocalNat64Prefixes = test => {
 
     test.done();
 };
+
+module.exports.isInvalidLocalNat64PrefixesCannotWeakenChecks = test => {
+    // A declared prefix must not become a way to stop the address being judged as itself.
+    // Unlike the well-known prefix, a locally run one sits in the network's own range, so
+    // the outer address is meaningful: replacing it with the address it carries let a
+    // unique-local host through, because the recovered IPv4 fell in a range that
+    // blockLocalAddresses does not cover.
+    for (const [ip, prefix] of [
+        ['fc00::1', '::/0'],
+        ['fc00::1', 'fc00::/32'],
+        ['fe80::1', 'fe80::/32'],
+        ['fec0::1', 'fec0::/32'],
+        ['::1', '::/0']
+    ]) {
+        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused without any prefix declared`);
+        test.ok(
+            tools.isInvalid({ dnsOptions: { blockLocalAddresses: true, nat64Prefixes: [prefix] } }, ip),
+            `${ip} must stay refused when ${prefix} is declared`
+        );
+    }
+
+    // A prefix length RFC 6052 does not define has no embedding to read, so it is ignored
+    // rather than producing a wrong address or throwing out of the one check every address
+    // depends on. /33 used to throw from inside ipaddr.js.
+    for (const prefix of ['2a01:4f8::/97', '2a01:4f8::/33', '2a01:4f8::/128', '2a01:4f8::/0', '10.0.0.0/8', 'not-a-cidr']) {
+        const options = { dnsOptions: { blockLocalAddresses: true, nat64Prefixes: [prefix] } };
+        test.equal(tools.isInvalid(options, '2a01:4f8:c17:b8f::7f00:1'), false, `${prefix} should be ignored, not throw`);
+        test.ok(tools.isInvalid(options, '127.0.0.1'), `${prefix} must not disturb ordinary validation`);
+    }
+
+    test.done();
+};
