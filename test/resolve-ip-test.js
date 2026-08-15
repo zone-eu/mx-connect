@@ -21,6 +21,14 @@ test('dnsError', async () => {
         err => {
             assert.strictEqual(err.category, 'dns');
             assert.strictEqual(err.temporary, true);
+
+            // The message carries the explanation and the response is derived from it. These
+            // used to disagree: the response named the host and the domain while the message
+            // was still the resolver's bare "SERVFAIL", so what a caller reported depended on
+            // which property it happened to read.
+            assert.ok(err.message.includes('mail.fail.example.com'), 'The message should name the host that failed to resolve');
+            assert.ok(err.message.includes('fail.example.com'), 'The message should name the domain being delivered to');
+            assert.strictEqual(err.response, `DNS Error: ${err.message}`, 'The response must be the message, not a second wording of it');
             return true;
         }
     );
