@@ -6,7 +6,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const mxConnect = require('../lib/mx-connect');
-const { createMockSocket, createDnsError } = require('./test-utils');
+const { createMockConnectHook, createDnsError } = require('./test-utils');
 
 /**
  * Test: DNSSEC-secure zone proceeds to TLSA lookup
@@ -41,10 +41,7 @@ test('dnssecSecureZoneProceedsToTlsa', (t, done) => {
                 checkDnssecSecure: mockCheckDnssecSecure,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -93,10 +90,7 @@ test('insecureZoneSkipsTlsa', (t, done) => {
                     logMessages.push(logObj);
                 }
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -155,10 +149,7 @@ function testDnssecCheckFailure(done, code) {
                     logMessages.push(logObj);
                 }
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ok(err, `${code} from the DNSSEC check must not bypass DANE`);
@@ -218,10 +209,7 @@ test('withoutCheckDnssecSecureTlsaProceeds', (t, done) => {
                 // checkDnssecSecure intentionally not provided
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -266,10 +254,7 @@ test('checkDnssecSecureReceivesCorrectHostname', (t, done) => {
                 checkDnssecSecure: mockCheckDnssecSecure,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -330,10 +315,7 @@ test('multipleMxHostsMixedDnssecStatus', (t, done) => {
                 checkDnssecSecure: mockCheckDnssecSecure,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -386,10 +368,7 @@ test('dnssecCheckReturningNullTreatedAsInsecure', (t, done) => {
                 checkDnssecSecure: mockCheckDnssecSecure,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -440,10 +419,7 @@ test('preResolvedTlsaBypassesDnssecCheck', (t, done) => {
                 checkDnssecSecure: mockCheckDnssecSecure,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);

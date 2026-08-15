@@ -8,7 +8,7 @@ const assert = require('node:assert');
 const mxConnect = require('../lib/mx-connect');
 const dane = require('../lib/dane');
 const nodeCrypto = require('crypto');
-const { createMockSocket } = require('./test-utils');
+const { createMockConnectHook } = require('./test-utils');
 
 /**
  * Test DANE module exports
@@ -174,10 +174,7 @@ test('daneWithCustomResolver', (t, done) => {
                 resolveTlsa: mockResolveTlsa,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -226,10 +223,7 @@ test('daneWithTlsaRecords', (t, done) => {
                     logMessages.push(logObj);
                 }
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -281,10 +275,7 @@ test('daneResolverError', (t, done) => {
                 resolveTlsa: mockResolveTlsa,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ok(err, 'Should return an error when DANE lookup fails in verify mode');
@@ -328,10 +319,7 @@ test('daneResolverErrorVerifyFalseStillEnforced', (t, done) => {
                     logMessages.push(logObj);
                 }
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ok(err, 'verify:false must not bypass DANE enforcement');
@@ -376,10 +364,7 @@ test('daneNoDataResponse', (t, done) => {
                 resolveTlsa: mockResolveTlsa,
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -417,10 +402,7 @@ test('daneExplicitlyDisabled', (t, done) => {
                 enabled: false,
                 resolveTlsa: mockResolveTlsa
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -484,12 +466,10 @@ test('resolveTlsaRecordsOtherError', async () => {
         throw err;
     };
 
-    try {
-        await dane.resolveTlsaRecords('mail.example.com', 25, { resolveTlsa: mockResolver });
-        assert.ok(false, 'Should have thrown an error');
-    } catch (err) {
+    await assert.rejects(dane.resolveTlsaRecords('mail.example.com', 25, { resolveTlsa: mockResolver }), err => {
         assert.strictEqual(err.code, 'ESERVFAIL', 'Should propagate non-NODATA errors');
-    }
+        return true;
+    });
 });
 
 /**
@@ -534,10 +514,7 @@ test('daneWithPreresolvedMx', (t, done) => {
                     logMessages.push(logObj);
                 }
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -578,10 +555,7 @@ test('daneAutoDetectNoResolver', (t, done) => {
                 },
                 logger: () => {}
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);

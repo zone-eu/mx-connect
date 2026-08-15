@@ -31,6 +31,15 @@ function startGreetingServer() {
     });
 }
 
+/**
+ * Reads the greeting line startGreetingServer sends, so a test can assert that the socket it
+ * was handed is actually usable rather than merely connected. Kept beside the server that
+ * writes the line, rather than spelled out at each call site.
+ */
+function readGreeting(socket) {
+    return new Promise(resolve => socket.once('data', chunk => resolve(chunk.toString())));
+}
+
 function closeServer(server) {
     return new Promise(resolve => server.close(resolve));
 }
@@ -155,10 +164,14 @@ function createMockSocket(options = {}) {
 
 /**
  * Creates a connectHook that provides a mock socket.
+ *
+ * The socket reports the host being connected to as its remoteAddress, which is what every
+ * hand-written copy of this hook in the suite did for itself; not being able to express that
+ * is why they were written by hand. Anything in socketOptions overrides it.
  */
 function createMockConnectHook(socketOptions = {}) {
     return function (delivery, options, callback) {
-        options.socket = createMockSocket(socketOptions);
+        options.socket = createMockSocket({ remoteAddress: options.host, ...socketOptions });
         return callback();
     };
 }
@@ -180,29 +193,31 @@ function createFailingConnectHook(error) {
 /**
  * Creates a connectHook that tracks connection attempts and provides mock sockets.
  * Returns an object with the hook function and an array to collect connection data.
+ *
+ * Each attempt records everything the hook is given a view of, so a test asserting on the
+ * local address or on the delivery object does not need a hook of its own; picking one field
+ * out of the recorded attempt is what the hand-written copies were for.
  */
 function createTrackingConnectHook() {
     const connections = [];
     function hook(delivery, options, callback) {
-        connections.push({ host: options.host, port: options.port });
+        connections.push({
+            host: options.host,
+            port: options.port,
+            localAddress: options.localAddress,
+            localHostname: options.localHostname,
+            delivery
+        });
         options.socket = createMockSocket({ remoteAddress: options.host });
         return callback();
     }
     return { hook, connections };
 }
 
-/**
- * Closes a socket connection after receiving data and calls done when ended.
- * Use this pattern for integration tests with real sockets.
- */
-function closeSocketAfterData(socket, done) {
-    socket.once('end', done);
-    socket.once('data', () => socket.end());
-}
-
 module.exports = {
     startServer,
     startGreetingServer,
+    readGreeting,
     closeServer,
     getFreePort,
     createMockDnsResolver,
@@ -212,6 +227,5 @@ module.exports = {
     createMockSocket,
     createMockConnectHook,
     createFailingConnectHook,
-    createTrackingConnectHook,
-    closeSocketAfterData
+    createTrackingConnectHook
 };

@@ -9,8 +9,10 @@ const {
     createTrackingDnsResolver,
     createMockRecordResolver,
     createMockConnectHook,
-    createMockSocket,
+    createTrackingConnectHook,
+    createFailingConnectHook,
     startGreetingServer,
+    readGreeting,
     closeServer
 } = require('./test-utils');
 
@@ -27,10 +29,7 @@ test('basicWithMock', (t, done) => {
         {
             target: 'test.example.com',
             dnsOptions: { resolve: mockResolver },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -54,10 +53,7 @@ test('addressWithMock', (t, done) => {
         {
             target: 'user@example.com',
             dnsOptions: { resolve: mockResolver },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -79,10 +75,7 @@ test('preResolvedMx', (t, done) => {
                     AAAA: []
                 }
             ],
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -125,11 +118,7 @@ test('connectionFailure', (t, done) => {
         {
             target: 'noconnect.example.com',
             dnsOptions: { resolve: mockResolver },
-            connectHook(delivery, options, callback) {
-                const err = new Error('Connection refused');
-                err.code = 'ECONNREFUSED';
-                return callback(err);
-            }
+            connectHook: createFailingConnectHook(Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })).hook
         },
         (err, connection) => {
             assert.ok(err);
@@ -154,10 +143,7 @@ test('mtaStsDisabled', (t, done) => {
             mtaSts: {
                 enabled: false
             },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             assert.ifError(err);
@@ -169,7 +155,7 @@ test('mtaStsDisabled', (t, done) => {
 });
 
 test('customPort', (t, done) => {
-    let usedPort = null;
+    const { hook, connections } = createTrackingConnectHook();
 
     mxConnect(
         {
@@ -183,22 +169,18 @@ test('customPort', (t, done) => {
                     AAAA: []
                 }
             ],
-            connectHook(delivery, options, callback) {
-                usedPort = options.port;
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: hook
         },
         err => {
             assert.ifError(err);
-            assert.strictEqual(usedPort, 587);
+            assert.strictEqual(connections[0].port, 587);
             done();
         }
     );
 });
 
 test('mxPriorityOrdering', (t, done) => {
-    let connectedHost = null;
+    const { hook, connections } = createTrackingConnectHook();
 
     mxConnect(
         {
@@ -207,17 +189,12 @@ test('mxPriorityOrdering', (t, done) => {
                 { exchange: 'backup.example.com', priority: 20, A: ['192.0.2.2'], AAAA: [] },
                 { exchange: 'primary.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }
             ],
-            connectHook(delivery, options, callback) {
-                // Track which host was connected to first
-                connectedHost = options.host;
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: hook
         },
         (err, connection) => {
             assert.ifError(err);
             // Should connect to primary first (lower priority number = higher priority)
-            assert.strictEqual(connectedHost, '192.0.2.1');
+            assert.strictEqual(connections[0].host, '192.0.2.1');
             assert.strictEqual(connection.host, '192.0.2.1');
             done();
         }
@@ -227,20 +204,13 @@ test('mxPriorityOrdering', (t, done) => {
 // Promise-based API tests
 
 test('promiseBasic', async () => {
-    try {
-        const connection = await mxConnect({
-            target: 'test.example.com',
-            mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.host, '192.0.2.1');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'test.example.com',
+        mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.host, '192.0.2.1');
 });
 
 test('promiseRejectsOnError', async () => {
@@ -248,16 +218,17 @@ test('promiseRejectsOnError', async () => {
         'fail.example.com:MX': { error: { code: 'SERVFAIL' } }
     });
 
-    try {
-        await mxConnect({
+    await assert.rejects(
+        mxConnect({
             target: 'fail.example.com',
             dnsOptions: { resolve: mockResolver }
-        });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
-        assert.ok(err);
-        assert.strictEqual(err.category, 'dns');
-    }
+        }),
+        err => {
+            assert.ok(err);
+            assert.strictEqual(err.category, 'dns');
+            return true;
+        }
+    );
 });
 
 test('promiseReturnsPromiseWithCallback', async () => {
@@ -269,10 +240,7 @@ test('promiseReturnsPromiseWithCallback', async () => {
         {
             target: 'test.example.com',
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
+            connectHook: createMockConnectHook()
         },
         (err, connection) => {
             callbackResult = { err, connection };
@@ -281,18 +249,14 @@ test('promiseReturnsPromiseWithCallback', async () => {
 
     assert.ok(result instanceof Promise, 'Should return a promise when callback is provided');
 
-    try {
-        const connection = await result;
-        assert.ok(connection.socket);
+    const connection = await result;
+    assert.ok(connection.socket);
 
-        // The callback bridge defers via setImmediate, give it a beat to run
-        await new Promise(resolve => setImmediate(resolve));
-        assert.ok(callbackResult, 'Callback should have been invoked');
-        assert.ifError(callbackResult.err);
-        assert.strictEqual(callbackResult.connection, connection, 'Callback and promise should deliver the same result');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    // The callback bridge defers via setImmediate, give it a beat to run
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(callbackResult, 'Callback should have been invoked');
+    assert.ifError(callbackResult.err);
+    assert.strictEqual(callbackResult.connection, connection, 'Callback and promise should deliver the same result');
 });
 
 test('stringShorthandTarget', async () => {
@@ -303,32 +267,23 @@ test('stringShorthandTarget', async () => {
         'shorthand.example.com:AAAA': { error: { code: 'ENODATA' } }
     });
 
-    try {
-        // No MX/A/AAAA records: rejection proves the string target went through the pipeline
-        await mxConnect({ target: 'shorthand.example.com', dnsOptions: { resolve: mockResolver } });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
+    // No MX/A/AAAA records: rejection proves the string target went through the pipeline
+    await assert.rejects(mxConnect({ target: 'shorthand.example.com', dnsOptions: { resolve: mockResolver } }), err => {
         assert.strictEqual(err.category, 'dns');
         assert.ok(err.message.includes('shorthand.example.com'));
-    }
+        return true;
+    });
 });
 
 test('stringMxEntryIp', async () => {
     // mx entries given as plain IP strings must connect without DNS lookups
-    try {
-        const connection = await mxConnect({
-            target: 'test.example.com',
-            mx: ['192.0.2.5'],
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.host, '192.0.2.5');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'test.example.com',
+        mx: ['192.0.2.5'],
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.host, '192.0.2.5');
 });
 
 test('stringMxEntryHostname', async () => {
@@ -338,22 +293,15 @@ test('stringMxEntryHostname', async () => {
         'mail.example.com:AAAA': { error: { code: 'ENODATA' } }
     });
 
-    try {
-        const connection = await mxConnect({
-            target: 'test.example.com',
-            mx: ['mail.example.com'],
-            dnsOptions: { resolve: mockResolver },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.host, '192.0.2.6');
-        assert.strictEqual(connection.hostname, 'mail.example.com');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'test.example.com',
+        mx: ['mail.example.com'],
+        dnsOptions: { resolve: mockResolver },
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.host, '192.0.2.6');
+    assert.strictEqual(connection.hostname, 'mail.example.com');
 });
 
 test('emptyTargetRejectsCleanly', async () => {
@@ -361,12 +309,10 @@ test('emptyTargetRejectsCleanly', async () => {
     // synchronous throw
     const mockResolver = createMockDnsResolver({});
 
-    try {
-        await mxConnect({ dnsOptions: { resolve: mockResolver } });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
+    await assert.rejects(mxConnect({ dnsOptions: { resolve: mockResolver } }), err => {
         assert.strictEqual(err.category, 'dns');
-    }
+        return true;
+    });
 });
 
 test('callbackThrowDoesNotDoubleInvoke', async () => {
@@ -384,10 +330,7 @@ test('callbackThrowDoesNotDoubleInvoke', async () => {
             {
                 target: 'test.example.com',
                 mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
-                connectHook(delivery, options, callback) {
-                    options.socket = createMockSocket({ remoteAddress: options.host });
-                    return callback();
-                }
+                connectHook: createMockConnectHook()
             },
             () => {
                 calls++;
@@ -427,23 +370,21 @@ test('mtaStsEnforceRejectsEndToEnd', async () => {
         }
     };
 
-    try {
-        await mxConnect({
+    await assert.rejects(
+        mxConnect({
             target: 'sts-e2e.example.com',
             mx: [{ exchange: 'rogue.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
             dnsOptions: { resolve: mockResolver },
             mtaSts: { enabled: true, cache },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
-        assert.strictEqual(err.category, 'policy');
-        assert.strictEqual(setCalls.length, 1, 'The renewed policy should have been cached');
-        assert.strictEqual(setCalls[0].domain, 'sts-e2e.example.com');
-    }
+            connectHook: createMockConnectHook()
+        }),
+        err => {
+            assert.strictEqual(err.category, 'policy');
+            assert.strictEqual(setCalls.length, 1, 'The renewed policy should have been cached');
+            assert.strictEqual(setCalls[0].domain, 'sts-e2e.example.com');
+            return true;
+        }
+    );
 });
 
 test('mtaStsValidMxConnectsEndToEnd', async () => {
@@ -463,23 +404,16 @@ test('mtaStsValidMxConnectsEndToEnd', async () => {
         }
     };
 
-    try {
-        const connection = await mxConnect({
-            target: 'sts-ok.example.com',
-            mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
-            dnsOptions: { resolve: mockResolver },
-            mtaSts: { enabled: true, cache },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.policyMatch.valid, true);
-        assert.strictEqual(connection.policyMatch.mode, 'enforce');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'sts-ok.example.com',
+        mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
+        dnsOptions: { resolve: mockResolver },
+        mtaSts: { enabled: true, cache },
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.policyMatch.valid, true);
+    assert.strictEqual(connection.policyMatch.mode, 'enforce');
 });
 
 test('mtaStsNoPolicyNoCacheConnects', async () => {
@@ -487,70 +421,58 @@ test('mtaStsNoPolicyNoCacheConnects', async () => {
     // the default no-op cache is used and the connection proceeds in mode none
     const mockResolver = createMockDnsResolver({});
 
-    try {
-        const connection = await mxConnect({
-            target: 'nopolicy.example.com',
-            mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
-            dnsOptions: { resolve: mockResolver },
-            mtaSts: { enabled: true },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.policyMatch.valid, true);
-        assert.strictEqual(connection.policyMatch.mode, 'none');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'nopolicy.example.com',
+        mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
+        dnsOptions: { resolve: mockResolver },
+        mtaSts: { enabled: true },
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.policyMatch.valid, true);
+    assert.strictEqual(connection.policyMatch.mode, 'none');
 });
 
 test('mxOptionIpLiteralValidated', async () => {
     // Addresses passed through the mx option skip MX resolution, and used to skip
     // validation with it, which left blockLocalAddresses silently inert for exactly
     // the input an operator is most likely to hand-craft
-    const attempts = [];
+    const { hook, connections } = createTrackingConnectHook();
 
-    try {
-        await mxConnect({
+    await assert.rejects(
+        mxConnect({
             target: 'literal.example.com',
             mx: ['127.0.0.1'],
             dnsOptions: { blockLocalAddresses: true },
-            connectHook(delivery, options, callback) {
-                attempts.push(options.host);
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
-        assert.strictEqual(err.code, 'InvalidIpAddress');
-        assert.strictEqual(err.category, 'dns');
-        assert.ok(err.message.includes('127.0.0.1'));
-    }
-    assert.deepStrictEqual(attempts, [], 'No connection may be attempted to a blocked address');
+            connectHook: hook
+        }),
+        err => {
+            assert.strictEqual(err.code, 'InvalidIpAddress');
+            assert.strictEqual(err.category, 'dns');
+            assert.ok(err.message.includes('127.0.0.1'));
+            return true;
+        }
+    );
+    assert.deepStrictEqual(connections, [], 'No connection may be attempted to a blocked address');
 });
 
 test('mxOptionPreResolvedAddressValidated', async () => {
     // Same for addresses supplied on a resolved MX object, including the transition
     // forms that reach an internal IPv4 host through an outwardly public IPv6 address
     for (const address of ['127.0.0.1', '64:ff9b::7f00:1']) {
-        try {
-            await mxConnect({
+        await assert.rejects(
+            mxConnect({
                 target: 'literal.example.com',
                 mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: [address] }],
                 dnsOptions: { blockLocalAddresses: true },
-                connectHook(delivery, options, callback) {
-                    options.socket = createMockSocket({ remoteAddress: options.host });
-                    return callback();
-                }
-            });
-            assert.ok(false, `Should have rejected ${address}`);
-        } catch (err) {
-            assert.strictEqual(err.code, 'InvalidIpAddress', `${address} should be rejected as invalid`);
-            assert.ok(err.message.includes('127.0.0.1'), `${address} should be reported by the address it reaches`);
-        }
+                connectHook: createMockConnectHook()
+            }),
+            err => {
+                assert.strictEqual(err.code, 'InvalidIpAddress', `${address} should be rejected as invalid`);
+                assert.ok(err.message.includes('127.0.0.1'), `${address} should be reported by the address it reaches`);
+                return true;
+            }
+        );
     }
 });
 
@@ -567,29 +489,21 @@ test('mtaStsPolicyHostAddressValidated', async () => {
     });
 
     const logEntries = [];
-    let seenDelivery = null;
+    const { hook, connections } = createTrackingConnectHook();
 
-    try {
-        const connection = await mxConnect({
-            target: 'sts-ssrf.example.com',
-            mx: ['mail.example.com'],
-            dnsOptions: { resolve: mockResolver, blockLocalAddresses: true },
-            mtaSts: { enabled: true, logger: entry => logEntries.push(entry) },
-            connectHook(delivery, options, callback) {
-                seenDelivery = delivery;
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.host, '192.0.2.1');
-        // With the policy host unusable no policy is fetched, so nothing is enforced
-        assert.strictEqual(connection.policyMatch.mode, 'none');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'sts-ssrf.example.com',
+        mx: ['mail.example.com'],
+        dnsOptions: { resolve: mockResolver, blockLocalAddresses: true },
+        mtaSts: { enabled: true, logger: entry => logEntries.push(entry) },
+        connectHook: hook
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.host, '192.0.2.1');
+    // With the policy host unusable no policy is fetched, so nothing is enforced
+    assert.strictEqual(connection.policyMatch.mode, 'none');
 
-    const blocked = (seenDelivery && seenDelivery.blockedAddresses) || [];
+    const blocked = (connections[0] && connections[0].delivery.blockedAddresses) || [];
     assert.deepStrictEqual(
         blocked.map(entry => entry.ip),
         ['169.254.169.254'],
@@ -611,21 +525,14 @@ test('mtaStsPolicyResolverUsesTwoArgumentAForm', async () => {
         'mail.example.com:A': { data: ['192.0.2.1'] }
     });
 
-    try {
-        const connection = await mxConnect({
-            target: 'sts-arity.example.com',
-            mx: ['mail.example.com'],
-            dnsOptions: { resolve: resolver },
-            mtaSts: { enabled: true },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'sts-arity.example.com',
+        mx: ['mail.example.com'],
+        dnsOptions: { resolve: resolver },
+        mtaSts: { enabled: true },
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
 
     const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.sts-arity.example.com');
     assert.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
@@ -645,21 +552,14 @@ test('mtaStsPolicyResolverHonoursIgnoreIPv6', async () => {
         'mail.example.com:A': { data: ['192.0.2.1'] }
     });
 
-    try {
-        const connection = await mxConnect({
-            target: 'sts-v6.example.com',
-            mx: ['mail.example.com'],
-            dnsOptions: { resolve: resolver, ignoreIPv6: true },
-            mtaSts: { enabled: true },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: 'sts-v6.example.com',
+        mx: ['mail.example.com'],
+        dnsOptions: { resolve: resolver, ignoreIPv6: true },
+        mtaSts: { enabled: true },
+        connectHook: createMockConnectHook()
+    });
+    assert.ok(connection.socket);
 
     const aaaaCalls = calls.filter(entry => entry.type === 'AAAA');
     assert.deepStrictEqual(aaaaCalls, [], 'No AAAA lookup may be issued when ignoreIPv6 is set');
@@ -671,23 +571,21 @@ test('mxOptionNonCanonicalAddressRejected', async () => {
     // net.connect would hand such a string to dns.lookup, so the address validated has to
     // be a canonical literal or it is not the address connected to.
     for (const address of ['0127.0.0.1', '010.000.000.001', '0169.254.169.254']) {
-        const attempts = [];
-        try {
-            await mxConnect({
+        const { hook, connections } = createTrackingConnectHook();
+
+        await assert.rejects(
+            mxConnect({
                 target: 'octal.example.com',
                 mx: [{ exchange: 'mail.example.com', priority: 10, A: [address], AAAA: [] }],
                 dnsOptions: { blockLocalAddresses: true },
-                connectHook(delivery, options, callback) {
-                    attempts.push(options.host);
-                    options.socket = createMockSocket({ remoteAddress: options.host });
-                    return callback();
-                }
-            });
-            assert.ok(false, `Should have rejected ${address}`);
-        } catch (err) {
-            assert.strictEqual(err.code, 'InvalidIpAddress', `${address} should be refused`);
-        }
-        assert.deepStrictEqual(attempts, [], `no connection may be attempted for ${address}`);
+                connectHook: hook
+            }),
+            err => {
+                assert.strictEqual(err.code, 'InvalidIpAddress', `${address} should be refused`);
+                return true;
+            }
+        );
+        assert.deepStrictEqual(connections, [], `no connection may be attempted for ${address}`);
     }
 });
 
@@ -704,45 +602,35 @@ test('mxOptionIPv6RejectedWhenIgnoreIPv6', async () => {
     ];
 
     for (const [label, mx] of shapes) {
-        const attempts = [];
-        try {
-            await mxConnect({
+        const { hook, connections } = createTrackingConnectHook();
+
+        await assert.rejects(
+            mxConnect({
                 target: 'v6.example.com',
                 mx,
                 dnsOptions: { ignoreIPv6: true },
-                connectHook(delivery, options, callback) {
-                    attempts.push(options.host);
-                    options.socket = createMockSocket({ remoteAddress: options.host });
-                    return callback();
-                }
-            });
-            assert.ok(false, `Should have rejected an IPv6 address given as ${label}`);
-        } catch (err) {
-            assert.strictEqual(err.code, 'InvalidIpAddress', `${label} should be refused as an invalid address`);
-        }
-        assert.deepStrictEqual(attempts, [], `No IPv6 connection may be attempted for ${label}`);
+                connectHook: hook
+            }),
+            err => {
+                assert.strictEqual(err.code, 'InvalidIpAddress', `${label} should be refused as an invalid address`);
+                return true;
+            }
+        );
+        assert.deepStrictEqual(connections, [], `No IPv6 connection may be attempted for ${label}`);
     }
 
     // An entry that also carries an IPv4 address stays deliverable over IPv4, and the
     // address dropped on the way has to be visible rather than silently filtered
-    let seenDelivery = null;
-    try {
-        const connection = await mxConnect({
-            target: 'v6.example.com',
-            mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: ['2606:4700:4700::1111'] }],
-            dnsOptions: { ignoreIPv6: true },
-            connectHook(delivery, options, callback) {
-                seenDelivery = delivery;
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.strictEqual(connection.host, '192.0.2.1', 'Delivery must fall to the IPv4 address rather than fail');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const { hook, connections } = createTrackingConnectHook();
+    const connection = await mxConnect({
+        target: 'v6.example.com',
+        mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: ['2606:4700:4700::1111'] }],
+        dnsOptions: { ignoreIPv6: true },
+        connectHook: hook
+    });
+    assert.strictEqual(connection.host, '192.0.2.1', 'Delivery must fall to the IPv4 address rather than fail');
 
-    const blocked = (seenDelivery && seenDelivery.blockedAddresses) || [];
+    const blocked = (connections[0] && connections[0].delivery.blockedAddresses) || [];
     assert.deepStrictEqual(
         blocked.map(entry => entry.ip),
         ['2606:4700:4700::1111'],
@@ -756,49 +644,41 @@ test('ignoreIPv6TargetRefusedAndRetryable', async () => {
     // error names the address and carries a code. It is also temporary: nothing is wrong
     // with the host, this sender just does not use IPv6, so the message waits for the
     // setting to change instead of bouncing.
-    try {
-        await mxConnect({ target: '[IPv6:2001:db8:1ff::a0b:dbd0]', dnsOptions: { ignoreIPv6: true } });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
+    await assert.rejects(mxConnect({ target: '[IPv6:2001:db8:1ff::a0b:dbd0]', dnsOptions: { ignoreIPv6: true } }), err => {
         assert.strictEqual(err.code, 'InvalidIpAddress');
         assert.strictEqual(err.category, 'dns');
         assert.strictEqual(err.temporary, true, 'A local transport policy must not bounce the message');
         assert.ok(err.message.includes('2001:db8:1ff::a0b:dbd0'));
         assert.ok(err.message.includes('given as the delivery target'), 'The target must not be reported as an MX lookup result');
-    }
+        return true;
+    });
 
     // An IPv6 target that is never used as a destination, because the mx option supplies
     // the real host, must not be refused at all
-    try {
-        const connection = await mxConnect({
-            target: '[IPv6:2001:db8:1ff::a0b:dbd0]',
-            mx: ['192.0.2.1'],
-            dnsOptions: { ignoreIPv6: true },
-            connectHook(delivery, options, callback) {
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.strictEqual(connection.host, '192.0.2.1', 'An unused IPv6 target must not block delivery');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const connection = await mxConnect({
+        target: '[IPv6:2001:db8:1ff::a0b:dbd0]',
+        mx: ['192.0.2.1'],
+        dnsOptions: { ignoreIPv6: true },
+        connectHook: createMockConnectHook()
+    });
+    assert.strictEqual(connection.host, '192.0.2.1', 'An unused IPv6 target must not block delivery');
 });
 
 test('blockedAddressRefusalStaysPermanent', async () => {
     // A refusal that is a property of the destination stays permanent: retrying will not
     // make a loopback MX deliverable
-    try {
-        await mxConnect({
+    await assert.rejects(
+        mxConnect({
             target: 'local.example.com',
             mx: ['127.0.0.1'],
             dnsOptions: { blockLocalAddresses: true }
-        });
-        assert.ok(false, 'Should have rejected');
-    } catch (err) {
-        assert.strictEqual(err.code, 'InvalidIpAddress');
-        assert.ok(!err.temporary, 'A blocked destination must not be retried');
-    }
+        }),
+        err => {
+            assert.strictEqual(err.code, 'InvalidIpAddress');
+            assert.ok(!err.temporary, 'A blocked destination must not be retried');
+            return true;
+        }
+    );
 });
 
 test('mtaStsPolicyHostAddressPassesFilter', async () => {
@@ -815,28 +695,20 @@ test('mtaStsPolicyHostAddressPassesFilter', async () => {
         'mail.example.com:AAAA': { error: { code: 'ENODATA' } }
     });
 
-    let seenDelivery = null;
-    try {
-        const connection = await mxConnect({
-            target: 'pass.example.com',
-            mx: ['mail.example.com'],
-            dnsOptions: { resolve: resolver },
-            mtaSts: { enabled: true },
-            connectHook(delivery, options, callback) {
-                seenDelivery = delivery;
-                options.socket = createMockSocket({ remoteAddress: options.host });
-                return callback();
-            }
-        });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.host, '192.0.2.1');
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const { hook, connections } = createTrackingConnectHook();
+    const connection = await mxConnect({
+        target: 'pass.example.com',
+        mx: ['mail.example.com'],
+        dnsOptions: { resolve: resolver },
+        mtaSts: { enabled: true },
+        connectHook: hook
+    });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.host, '192.0.2.1');
 
     const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.pass.example.com');
     assert.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
-    assert.deepStrictEqual((seenDelivery && seenDelivery.blockedAddresses) || [], [], 'An allowed policy host address must not be filtered out');
+    assert.deepStrictEqual((connections[0] && connections[0].delivery.blockedAddresses) || [], [], 'An allowed policy host address must not be filtered out');
 });
 
 test('endToEndOverRealSocket', async () => {
@@ -846,18 +718,14 @@ test('endToEndOverRealSocket', async () => {
     const server = await startGreetingServer();
     const { port } = server.address();
 
-    try {
-        const connection = await mxConnect({ target: 'mx-connect.test', mx: ['127.0.0.1'], port });
-        assert.ok(connection.socket);
-        assert.strictEqual(connection.host, '127.0.0.1');
-        assert.strictEqual(connection.port, port);
+    const connection = await mxConnect({ target: 'mx-connect.test', mx: ['127.0.0.1'], port });
+    assert.ok(connection.socket);
+    assert.strictEqual(connection.host, '127.0.0.1');
+    assert.strictEqual(connection.port, port);
 
-        const greeting = await new Promise(resolve => connection.socket.once('data', chunk => resolve(chunk.toString())));
-        assert.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
-        connection.socket.destroy();
-    } catch (err) {
-        assert.ifError(err);
-    }
+    const greeting = await readGreeting(connection.socket);
+    assert.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
+    connection.socket.destroy();
 
     await closeServer(server);
 });
