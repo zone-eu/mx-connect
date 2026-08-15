@@ -75,7 +75,9 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 
 **MTA-STS integration:** Uses `mailauth` library for policy fetching and MX validation. Policies are cached via user-provided cache handlers.
 
-**Custom DNS resolvers:** The library accepts callback-style custom resolvers via `dnsOptions.resolve`. These are automatically promisified internally. When no custom resolver is provided, native `dns.promises` is used.
+**Custom DNS resolvers:** `tools.getDnsResolver(dnsOptions)` builds the one resolver the whole pipeline uses, choosing between three sources: `dnsOptions.resolveAsync` returns the records, either directly or as a promise; `dnsOptions.resolve` is the older callback form and is promisified; with neither set, native `dns.promises` is used.
+
+`resolveAsync` always receives an explicit record type. The callback form keeps its quirk of omitting the type for A lookups, since resolvers written against it may only accept the two-argument shape, and that wart is what `resolveAsync` exists to leave behind. When both options are set, `resolveAsync` wins.
 
 **Async conventions:** All asynchronous code uses async/await. Raw promise primitives are limited to justified boundaries: `new Promise` wrappers where callback-style user APIs (custom DNS resolvers, `connectHook`) or event-based APIs (`net.connect` with timeout race) meet async code, `Promise.all` for parallel fan-out, and the `.then()` bridge in `mx-connect.js` that feeds the public callback API.
 

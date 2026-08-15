@@ -853,3 +853,118 @@ test('endToEndOverRealSocket', async () => {
 
     await closeServer(server);
 });
+
+test('resolveAsyncDrivesTheWholePipeline', async () => {
+    // The promise-based resolver has to serve every lookup the delivery makes, not just
+    // the MX one, and a synchronous return is as acceptable as a promise
+    const calls = [];
+    const records = {
+        'async.example.com:MX': [{ exchange: 'mail.example.com', priority: 10 }],
+        'mail.example.com:A': ['192.0.2.1']
+    };
+
+    const connection = await mxConnect({
+        target: 'async.example.com',
+        dnsOptions: {
+            resolveAsync(domain, type) {
+                calls.push(`${domain}:${type}`);
+                const answer = records[`${domain}:${type}`];
+                if (!answer) {
+                    const err = new Error('ENODATA');
+                    err.code = 'ENODATA';
+                    throw err;
+                }
+                return answer;
+            }
+        },
+        connectHook(delivery, options, callback) {
+            options.socket = createMockSocket({ remoteAddress: options.host });
+            return callback();
+        }
+    });
+
+    assert.strictEqual(connection.host, '192.0.2.1');
+    assert.ok(calls.includes('async.example.com:MX'), 'The MX lookup should go through resolveAsync');
+    assert.ok(calls.includes('mail.example.com:A'), 'Address lookups should go through it too');
+    assert.ok(!calls.some(call => call.endsWith(':undefined')), 'Every lookup should name its record type');
+});
+
+test('resolveAsyncCoversTheMtaStsPolicyLookup', async () => {
+    // The policy host is resolved before any MX record is considered, and it must use the
+    // caller's resolver like everything else. Falling back to system DNS there would both
+    // ignore the configuration and reach a different answer than the rest of the delivery.
+    const calls = [];
+    const records = {
+        '_mta-sts.sts-async.example.com:TXT': [['v=STSv1; id=async1']],
+        'mail.example.com:A': ['192.0.2.1']
+    };
+
+    const connection = await mxConnect({
+        target: 'sts-async.example.com',
+        mx: ['mail.example.com'],
+        mtaSts: { enabled: true },
+        dnsOptions: {
+            resolveAsync(domain, type) {
+                calls.push(`${domain}:${type}`);
+                const answer = records[`${domain}:${type}`];
+                if (!answer) {
+                    const err = new Error('ENOTFOUND');
+                    err.code = 'ENOTFOUND';
+                    throw err;
+                }
+                return answer;
+            }
+        },
+        connectHook(delivery, options, callback) {
+            options.socket = createMockSocket({ remoteAddress: options.host });
+            return callback();
+        }
+    });
+
+    assert.ok(connection.socket);
+    assert.ok(calls.includes('_mta-sts.sts-async.example.com:TXT'), 'The policy TXT lookup should use resolveAsync');
+    assert.ok(
+        calls.some(call => call.startsWith('mta-sts.sts-async.example.com:')),
+        'The policy host lookup should use resolveAsync'
+    );
+});
+
+test('legacyResolveStillWorksAlongsideTheNewOption', async () => {
+    // The callback form keeps working untouched, including its two-argument A lookups
+    const arities = [];
+    const connection = await mxConnect({
+        target: 'legacy.example.com',
+        dnsOptions: {
+            resolve(domain, typeOrCallback, maybeCallback) {
+                const twoArgForm = typeof typeOrCallback === 'function';
+                const type = twoArgForm ? 'A' : typeOrCallback;
+                const callback = twoArgForm ? typeOrCallback : maybeCallback;
+                arities.push({ type, args: twoArgForm ? 2 : 3 });
+
+                if (type === 'MX') {
+                    return setImmediate(() => callback(null, [{ exchange: 'mail.example.com', priority: 10 }]));
+                }
+                if (type === 'A') {
+                    return setImmediate(() => callback(null, ['192.0.2.3']));
+                }
+                const err = new Error('ENODATA');
+                err.code = 'ENODATA';
+                return setImmediate(() => callback(err));
+            }
+        },
+        connectHook(delivery, options, callback) {
+            options.socket = createMockSocket({ remoteAddress: options.host });
+            return callback();
+        }
+    });
+
+    assert.strictEqual(connection.host, '192.0.2.3');
+    assert.ok(
+        arities.some(call => call.type === 'A' && call.args === 2),
+        'A lookups must keep using the two-argument callback form'
+    );
+    assert.ok(
+        arities.some(call => call.type === 'MX' && call.args === 3),
+        'Other record types keep the three-argument form'
+    );
+});

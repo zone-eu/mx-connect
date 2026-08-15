@@ -85,16 +85,62 @@ The family-specific options let you bind a different source address per family. 
 
 ### dnsOptions
 
-| Option                  | Type     | Default       | Description                                                                                     |
-| ----------------------- | -------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| `ignoreIPv6`            | boolean  | `false`       | Never use IPv6 for sending. See [below](#ignoreipv6)                                            |
-| `preferIPv6`            | boolean  | `false`       | Try IPv6 addresses before IPv4 when a host has both                                             |
-| `blockLocalAddresses`   | boolean  | `false`       | Refuse local and private scope addresses. See [Address validation](#address-validation)         |
-| `blockReservedNetworks` | boolean  | `false`       | Refuse IANA special-purpose addresses. See [Address validation](#address-validation)            |
-| `nat64Prefixes`         | string[] | `[]`          | NAT64 prefixes your own network runs. See [NAT64 on your own prefix](#nat64-on-your-own-prefix) |
-| `resolve`               | function | `dns.resolve` | Custom callback-style DNS resolver                                                              |
+| Option                  | Type     | Default | Description                                                                                     |
+| ----------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `ignoreIPv6`            | boolean  | `false` | Never use IPv6 for sending. See [below](#ignoreipv6)                                            |
+| `preferIPv6`            | boolean  | `false` | Try IPv6 addresses before IPv4 when a host has both                                             |
+| `blockLocalAddresses`   | boolean  | `false` | Refuse local and private scope addresses. See [Address validation](#address-validation)         |
+| `blockReservedNetworks` | boolean  | `false` | Refuse IANA special-purpose addresses. See [Address validation](#address-validation)            |
+| `nat64Prefixes`         | string[] | `[]`    | NAT64 prefixes your own network runs. See [NAT64 on your own prefix](#nat64-on-your-own-prefix) |
+| `resolveAsync`          | function |         | DNS resolver returning the records. See [Custom DNS resolver](#custom-dns-resolver)             |
+| `resolve`               | function |         | Callback-style DNS resolver. See [Custom DNS resolver](#custom-dns-resolver)                    |
 
-A custom `resolve` function is called as `resolve(domain, type, callback)`, except for A record lookups which always use `resolve(domain, callback)`. Other record types (`MX`, `AAAA`, `TXT`) always pass the type.
+With neither set, native `dns.promises` is used.
+
+#### Custom DNS resolver
+
+`resolveAsync` receives a domain and a record type and returns the records:
+
+```javascript
+const connection = await mxConnect({
+    target: 'user@example.com',
+    dnsOptions: {
+        async resolveAsync(domain, type) {
+            // type is 'MX', 'A', 'AAAA' or 'TXT'
+            return myResolver.lookup(domain, type);
+        }
+    }
+});
+```
+
+Returning the records directly is fine too, so a resolver backed by a cache does not have to pretend to be asynchronous:
+
+```javascript
+const dnsOptions = {
+    resolveAsync: (domain, type) => cache.get(`${domain}:${type}`) ?? []
+};
+```
+
+Throwing, or returning a rejected promise, is how you report a lookup failure. Set `err.code` to `ENOTFOUND` or `ENODATA` to say "no records of this type", which lets resolution fall through to the next step; any other code is treated as a real DNS failure.
+
+> [!TIP]
+> `resolveAsync` always receives an explicit record type, A lookups included.
+
+The older `resolve` option takes a callback and is still supported:
+
+```javascript
+const dnsOptions = {
+    resolve(domain, type, callback) {
+        // A lookups arrive as resolve(domain, callback), with no type
+        myResolver.lookup(domain, type, callback);
+    }
+};
+```
+
+It is called as `resolve(domain, type, callback)`, except for A records where it is called as `resolve(domain, callback)` with no type at all. That quirk is why `resolveAsync` exists; prefer it for new code.
+
+> [!NOTE]
+> If both are set, `resolveAsync` is used and `resolve` is ignored, so you can migrate one deployment at a time.
 
 #### ignoreIPv6
 

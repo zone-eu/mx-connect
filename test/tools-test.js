@@ -16,7 +16,7 @@ test('getDnsResolverWithCustomResolver', async () => {
         setImmediate(() => callback(null, ['192.0.2.1']));
     };
 
-    const resolver = tools.getDnsResolver(customResolver);
+    const resolver = tools.getDnsResolver({ resolve: customResolver });
 
     try {
         // Test with type argument
@@ -45,7 +45,7 @@ test('getDnsResolverWithCustomResolverError', async () => {
         setImmediate(() => callback(err));
     };
 
-    const resolver = tools.getDnsResolver(customResolver);
+    const resolver = tools.getDnsResolver({ resolve: customResolver });
 
     try {
         await resolver('fail.example.com', 'MX');
@@ -57,7 +57,7 @@ test('getDnsResolverWithCustomResolverError', async () => {
 
 test('getDnsResolverWithoutCustomResolver', async () => {
     // When no custom resolver provided, should use native dns.promises
-    const resolver = tools.getDnsResolver(null);
+    const resolver = tools.getDnsResolver();
 
     // Just verify it returns a function
     assert.strictEqual(typeof resolver, 'function');
@@ -285,7 +285,7 @@ test('getDnsResolverExplicitATypeUsesLegacyForm', async () => {
         setImmediate(() => callback(null, ['192.0.2.1']));
     };
 
-    const resolver = tools.getDnsResolver(customResolver);
+    const resolver = tools.getDnsResolver({ resolve: customResolver });
 
     try {
         const aRecords = await resolver('example.com', 'A');
@@ -426,5 +426,95 @@ test('isInvalidNat64PrefixesNotAnArray', async () => {
         const options = { dnsOptions: { blockLocalAddresses: true, nat64Prefixes: value } };
         assert.strictEqual(tools.isInvalid(options, '2606:4700:4700::1111'), false, 'a public address should still be judged normally');
         assert.ok(tools.isInvalid(options, '127.0.0.1'), 'ordinary validation must be undisturbed');
+    }
+});
+
+test('getDnsResolverResolveAsyncReturningPromise', async () => {
+    // The newer option returns the records rather than taking a callback
+    const calls = [];
+    const resolver = tools.getDnsResolver({
+        async resolveAsync(domain, type) {
+            calls.push({ domain, type });
+            return ['192.0.2.1'];
+        }
+    });
+
+    assert.deepStrictEqual(await resolver('example.com', 'MX'), ['192.0.2.1']);
+    assert.deepStrictEqual(calls, [{ domain: 'example.com', type: 'MX' }]);
+});
+
+test('getDnsResolverResolveAsyncMayBeSynchronous', async () => {
+    // Returning the records directly is allowed, so a resolver backed by a cache does not
+    // have to pretend to be asynchronous
+    const resolver = tools.getDnsResolver({
+        resolveAsync: () => ['192.0.2.2']
+    });
+
+    assert.deepStrictEqual(await resolver('example.com', 'A'), ['192.0.2.2']);
+});
+
+test('getDnsResolverResolveAsyncAlwaysReceivesAType', async () => {
+    // The callback form omits the type for A lookups, which is the wart this option exists
+    // to leave behind, so an A lookup arrives here named like every other
+    const types = [];
+    const resolver = tools.getDnsResolver({
+        resolveAsync: (domain, type) => {
+            types.push(type);
+            return [];
+        }
+    });
+
+    await resolver('example.com');
+    await resolver('example.com', 'A');
+    await resolver('example.com', 'AAAA');
+
+    assert.deepStrictEqual(types, ['A', 'A', 'AAAA'], 'An omitted type must reach the resolver as A');
+});
+
+test('getDnsResolverResolveAsyncErrorsReject', async () => {
+    // Both a rejected promise and a synchronous throw have to surface as a rejection, or
+    // the resolution step cannot tell a failed lookup from an empty answer
+    const rejecting = tools.getDnsResolver({
+        async resolveAsync() {
+            const err = new Error('SERVFAIL');
+            err.code = 'SERVFAIL';
+            throw err;
+        }
+    });
+    await assert.rejects(() => rejecting('example.com', 'MX'), { code: 'SERVFAIL' });
+
+    const throwing = tools.getDnsResolver({
+        resolveAsync() {
+            const err = new Error('SERVFAIL');
+            err.code = 'SERVFAIL';
+            throw err;
+        }
+    });
+    await assert.rejects(() => throwing('example.com', 'MX'), { code: 'SERVFAIL' }, 'A synchronous throw must reject too');
+});
+
+test('getDnsResolverPrefersResolveAsyncOverResolve', async () => {
+    // Both may be set while a caller migrates. The newer one wins, and the callback is
+    // left alone rather than being called as well.
+    let callbackUsed = false;
+    const resolver = tools.getDnsResolver({
+        resolveAsync: () => ['from-async'],
+        resolve: (domain, typeOrCallback, maybeCallback) => {
+            callbackUsed = true;
+            const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
+            return setImmediate(() => callback(null, ['from-callback']));
+        }
+    });
+
+    assert.deepStrictEqual(await resolver('example.com', 'MX'), ['from-async']);
+    assert.strictEqual(callbackUsed, false, 'The callback resolver must not be consulted as well');
+});
+
+test('getDnsResolverIgnoresNonFunctionResolvers', async () => {
+    // A mistyped option must fall through to the next source rather than throwing from
+    // inside every lookup
+    for (const bad of [null, 'nope', 42, {}, []]) {
+        const resolver = tools.getDnsResolver({ resolveAsync: bad, resolve: undefined });
+        assert.strictEqual(typeof resolver, 'function', `resolveAsync of type ${typeof bad} should fall through`);
     }
 });
