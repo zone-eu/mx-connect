@@ -33,4 +33,9 @@ jobs:
                   node-version: 24
                   registry-url: 'https://registry.npmjs.org'
             - run: npm ci
+            # Nothing else blocks the publish, so the suite that guards the tarball runs here.
+            # The integration tests stay out: they need real DNS and a live MTA-STS policy, and
+            # a published record changing is not a reason to abandon a release mid-flight.
+            - run: npm run lint
+            - run: npm run test:unit
             - run: npm publish --provenance --access public
