@@ -1,9 +1,12 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const resolveMx = require('../lib/resolve-mx');
 const { createMockDnsResolver, createDnsError } = require('./test-utils');
 
-module.exports.dnsServfail = async test => {
+test('dnsServfail', async () => {
     const mockResolver = createMockDnsResolver({
         'servfail.example.com:MX': { error: createDnsError('SERVFAIL') }
     });
@@ -16,15 +19,14 @@ module.exports.dnsServfail = async test => {
             decodedDomain: 'servfail.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.temporary, true);
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.temporary, true);
     }
-    test.done();
-};
+});
 
-module.exports.fallbackToA = async test => {
+test('fallbackToA', async () => {
     const mockResolver = createMockDnsResolver({
         'noMx.example.com:MX': { error: createDnsError('ENODATA') },
         'noMx.example.com:A': { data: ['192.0.2.1'] }
@@ -38,17 +40,16 @@ module.exports.fallbackToA = async test => {
             decodedDomain: 'noMx.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(delivery.mx.length === 1);
-        test.equal(delivery.mx[0].exchange, 'noMx.example.com');
-        test.equal(delivery.mx[0].mx, false);
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.1']);
+        assert.ok(delivery.mx.length === 1);
+        assert.strictEqual(delivery.mx[0].exchange, 'noMx.example.com');
+        assert.strictEqual(delivery.mx[0].mx, false);
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.1']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.blockedLocalAddress = async test => {
+test('blockedLocalAddress', async () => {
     const mockResolver = createMockDnsResolver({
         'local.example.com:MX': { error: createDnsError('ENODATA') },
         'local.example.com:A': { data: ['127.0.0.1'] }
@@ -65,15 +66,14 @@ module.exports.blockedLocalAddress = async test => {
                 blockLocalAddresses: true
             }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('127.0.0.1'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('127.0.0.1'));
     }
-    test.done();
-};
+});
 
-module.exports.nullMxRejected = async test => {
+test('nullMxRejected', async () => {
     const mockResolver = createMockDnsResolver({
         'nomail.example.com:MX': { data: [{ exchange: '.', priority: 0 }] }
     });
@@ -86,17 +86,16 @@ module.exports.nullMxRejected = async test => {
             decodedDomain: 'nomail.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected null MX');
+        assert.ok(false, 'Should have rejected null MX');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.code, 'ENULLMX');
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.code, 'ENULLMX');
         // Null MX is a permanent refusal - must not be marked temporary
-        test.ok(!err.temporary);
+        assert.ok(!err.temporary);
     }
-    test.done();
-};
+});
 
-module.exports.nullMxEmptyExchangeRejected = async test => {
+test('nullMxEmptyExchangeRejected', async () => {
     // Some resolvers surface the root exchange as an empty string rather than "."
     const mockResolver = createMockDnsResolver({
         'nomail2.example.com:MX': { data: [{ exchange: '', priority: 0 }] }
@@ -110,14 +109,13 @@ module.exports.nullMxEmptyExchangeRejected = async test => {
             decodedDomain: 'nomail2.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected null MX');
+        assert.ok(false, 'Should have rejected null MX');
     } catch (err) {
-        test.equal(err.code, 'ENULLMX');
+        assert.strictEqual(err.code, 'ENULLMX');
     }
-    test.done();
-};
+});
 
-module.exports.nullMxDoesNotFallBackToA = async test => {
+test('nullMxDoesNotFallBackToA', async () => {
     // Even if an A record exists, a null MX must prevent delivery (no A/AAAA fallback)
     const mockResolver = createMockDnsResolver({
         'nomail3.example.com:MX': { data: [{ exchange: '.', priority: 0 }] },
@@ -132,14 +130,13 @@ module.exports.nullMxDoesNotFallBackToA = async test => {
             decodedDomain: 'nomail3.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected null MX without falling back to A');
+        assert.ok(false, 'Should have rejected null MX without falling back to A');
     } catch (err) {
-        test.equal(err.code, 'ENULLMX');
+        assert.strictEqual(err.code, 'ENULLMX');
     }
-    test.done();
-};
+});
 
-module.exports.nullMxAlongsideRealMxIsIgnored = async test => {
+test('nullMxAlongsideRealMxIsIgnored', async () => {
     // RFC 7505 Section 4.1 forbids mixing a null MX with real ones, so this is a
     // misconfiguration, not a refusal. Deliver via the usable records rather than bounce.
     const mockResolver = createMockDnsResolver({
@@ -159,15 +156,14 @@ module.exports.nullMxAlongsideRealMxIsIgnored = async test => {
             decodedDomain: 'mixed.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx.length, 1);
-        test.equal(delivery.mx[0].exchange, 'mail.example.com');
+        assert.strictEqual(delivery.mx.length, 1);
+        assert.strictEqual(delivery.mx[0].exchange, 'mail.example.com');
     } catch (err) {
-        test.ok(false, `Should not have rejected a misconfigured MX set: ${err.message}`);
+        assert.ok(false, `Should not have rejected a misconfigured MX set: ${err.message}`);
     }
-    test.done();
-};
+});
 
-module.exports.emptyExchangeAlongsideRealMxIsIgnored = async test => {
+test('emptyExchangeAlongsideRealMxIsIgnored', async () => {
     // A single malformed entry (empty exchange from a custom resolver) must not take down
     // an otherwise valid MX set
     const mockResolver = createMockDnsResolver({
@@ -187,15 +183,14 @@ module.exports.emptyExchangeAlongsideRealMxIsIgnored = async test => {
             decodedDomain: 'malformed.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx.length, 1);
-        test.equal(delivery.mx[0].exchange, 'mail.example.com');
+        assert.strictEqual(delivery.mx.length, 1);
+        assert.strictEqual(delivery.mx[0].exchange, 'mail.example.com');
     } catch (err) {
-        test.ok(false, `Should not have rejected a malformed MX set: ${err.message}`);
+        assert.ok(false, `Should not have rejected a malformed MX set: ${err.message}`);
     }
-    test.done();
-};
+});
 
-module.exports.allNullMxRejected = async test => {
+test('allNullMxRejected', async () => {
     // Multiple null MX entries are still an authoritative "no mail here"
     const mockResolver = createMockDnsResolver({
         'nomail4.example.com:MX': {
@@ -214,14 +209,13 @@ module.exports.allNullMxRejected = async test => {
             decodedDomain: 'nomail4.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected null MX');
+        assert.ok(false, 'Should have rejected null MX');
     } catch (err) {
-        test.equal(err.code, 'ENULLMX');
+        assert.strictEqual(err.code, 'ENULLMX');
     }
-    test.done();
-};
+});
 
-module.exports.mxRecordsSorted = async test => {
+test('mxRecordsSorted', async () => {
     const mockResolver = createMockDnsResolver({
         'multi.example.com:MX': {
             data: [
@@ -240,20 +234,19 @@ module.exports.mxRecordsSorted = async test => {
             decodedDomain: 'multi.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx.length, 3);
-        test.equal(delivery.mx[0].exchange, 'primary.example.com');
-        test.equal(delivery.mx[0].priority, 10);
-        test.equal(delivery.mx[1].exchange, 'backup.example.com');
-        test.equal(delivery.mx[1].priority, 20);
-        test.equal(delivery.mx[2].exchange, 'tertiary.example.com');
-        test.equal(delivery.mx[2].priority, 30);
+        assert.strictEqual(delivery.mx.length, 3);
+        assert.strictEqual(delivery.mx[0].exchange, 'primary.example.com');
+        assert.strictEqual(delivery.mx[0].priority, 10);
+        assert.strictEqual(delivery.mx[1].exchange, 'backup.example.com');
+        assert.strictEqual(delivery.mx[1].priority, 20);
+        assert.strictEqual(delivery.mx[2].exchange, 'tertiary.example.com');
+        assert.strictEqual(delivery.mx[2].priority, 30);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipLiteral = async test => {
+test('ipLiteral', async () => {
     try {
         const delivery = await resolveMx({
             domain: '192.0.2.1',
@@ -261,16 +254,15 @@ module.exports.ipLiteral = async test => {
             isPunycode: false,
             decodedDomain: '192.0.2.1'
         });
-        test.equal(delivery.mx.length, 1);
-        test.equal(delivery.mx[0].exchange, '192.0.2.1');
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.1']);
+        assert.strictEqual(delivery.mx.length, 1);
+        assert.strictEqual(delivery.mx[0].exchange, '192.0.2.1');
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.1']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.fallbackToAAAA = async test => {
+test('fallbackToAAAA', async () => {
     const mockResolver = createMockDnsResolver({
         'noMxNoA.example.com:MX': { error: createDnsError('ENODATA') },
         'noMxNoA.example.com:A': { error: createDnsError('ENODATA') },
@@ -285,17 +277,16 @@ module.exports.fallbackToAAAA = async test => {
             decodedDomain: 'noMxNoA.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(delivery.mx.length === 1);
-        test.equal(delivery.mx[0].exchange, 'noMxNoA.example.com');
-        test.equal(delivery.mx[0].mx, false);
-        test.deepEqual(delivery.mx[0].AAAA, ['2001:db8::1']);
+        assert.ok(delivery.mx.length === 1);
+        assert.strictEqual(delivery.mx[0].exchange, 'noMxNoA.example.com');
+        assert.strictEqual(delivery.mx[0].mx, false);
+        assert.deepStrictEqual(delivery.mx[0].AAAA, ['2001:db8::1']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.customResolverCalledWithCorrectArgs = async test => {
+test('customResolverCalledWithCorrectArgs', async () => {
     const calls = [];
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
         const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
@@ -318,17 +309,16 @@ module.exports.customResolverCalledWithCorrectArgs = async test => {
             decodedDomain: 'test.example.com',
             dnsOptions: { resolve: customResolver }
         });
-        test.equal(calls.length, 1);
-        test.equal(calls[0].domain, 'test.example.com');
-        test.equal(calls[0].type, 'MX');
-        test.equal(delivery.mx[0].exchange, 'mail.example.com');
+        assert.strictEqual(calls.length, 1);
+        assert.strictEqual(calls[0].domain, 'test.example.com');
+        assert.strictEqual(calls[0].type, 'MX');
+        assert.strictEqual(delivery.mx[0].exchange, 'mail.example.com');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipTargetBlockedLocalAddress = async test => {
+test('ipTargetBlockedLocalAddress', async () => {
     // An IP target in a blocked range must be rejected before any connection
     const delivery = {
         domain: '127.0.0.1',
@@ -340,24 +330,23 @@ module.exports.ipTargetBlockedLocalAddress = async test => {
 
     try {
         await resolveMx(delivery);
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('127.0.0.1'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('127.0.0.1'));
         // Callers need to tell this apart from a resolution failure, and the address
         // was given to us rather than resolved, so the error must not blame an MX lookup
-        test.equal(err.code, 'InvalidIpAddress');
-        test.ok(err.message.includes('given as the delivery target'));
-        test.ok(!err.message.includes('resolved for the Mail Exchange'), 'A literal target must not be reported as an MX lookup result');
-        test.deepEqual(
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.ok(err.message.includes('given as the delivery target'));
+        assert.ok(!err.message.includes('resolved for the Mail Exchange'), 'A literal target must not be reported as an MX lookup result');
+        assert.deepStrictEqual(
             delivery.blockedAddresses.map(entry => entry.ip),
             ['127.0.0.1']
         );
     }
-    test.done();
-};
+});
 
-module.exports.aaaaFallbackBlockedLocalAddress = async test => {
+test('aaaaFallbackBlockedLocalAddress', async () => {
     // AAAA fallback addresses go through the same local-address filtering
     const mockResolver = createMockDnsResolver({
         'v6local.example.com:MX': { error: createDnsError('ENODATA') },
@@ -373,15 +362,14 @@ module.exports.aaaaFallbackBlockedLocalAddress = async test => {
             decodedDomain: 'v6local.example.com',
             dnsOptions: { resolve: mockResolver, blockLocalAddresses: true }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('fe80::1'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('fe80::1'));
     }
-    test.done();
-};
+});
 
-module.exports.aaaaFallbackServfail = async test => {
+test('aaaaFallbackServfail', async () => {
     // A SERVFAIL on the AAAA fallback must be a temporary DNS error, not
     // masked as "no records"
     const mockResolver = createMockDnsResolver({
@@ -398,15 +386,14 @@ module.exports.aaaaFallbackServfail = async test => {
             decodedDomain: 'v6fail.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.temporary, true);
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.temporary, true);
     }
-    test.done();
-};
+});
 
-module.exports.ignoreIPv6ReportsIpv6OnlyDomain = async test => {
+test('ignoreIPv6ReportsIpv6OnlyDomain', async () => {
     // A domain with neither MX nor A records, reachable only over IPv6, used to be
     // indistinguishable under ignoreIPv6 from one with no mail service at all, because the
     // AAAA fallback was skipped: it bounced as "no MX server found" for what is really a
@@ -428,22 +415,21 @@ module.exports.ignoreIPv6ReportsIpv6OnlyDomain = async test => {
 
     try {
         await resolveMx(delivery);
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.code, 'InvalidIpAddress');
-        test.equal(err.temporary, true, 'A local setting must hold the message rather than bounce it');
-        test.ok(err.message.includes('2606:4700:4700::1111'), 'The error should name the address that was refused');
-        test.deepEqual(
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.strictEqual(err.temporary, true, 'A local setting must hold the message rather than bounce it');
+        assert.ok(err.message.includes('2606:4700:4700::1111'), 'The error should name the address that was refused');
+        assert.deepStrictEqual(
             delivery.blockedAddresses.map(entry => entry.ip),
             ['2606:4700:4700::1111'],
             'The refused address should be recorded'
         );
     }
-    test.done();
-};
+});
 
-module.exports.ignoreIPv6DomainWithNoRecordsAtAll = async test => {
+test('ignoreIPv6DomainWithNoRecordsAtAll', async () => {
     // A domain with genuinely nothing published must still be a plain "no MX server found",
     // not be misreported as an IPv6 problem
     const mockResolver = createMockDnsResolver({});
@@ -456,16 +442,15 @@ module.exports.ignoreIPv6DomainWithNoRecordsAtAll = async test => {
             decodedDomain: 'nothing.example.com',
             dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.code, 'ENOTFOUND');
-        test.ok(!err.temporary);
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.code, 'ENOTFOUND');
+        assert.ok(!err.temporary);
     }
-    test.done();
-};
+});
 
-module.exports.nullEntriesInMxResponseIgnored = async test => {
+test('nullEntriesInMxResponseIgnored', async () => {
     // Falsy entries from a broken custom resolver must be dropped, not crash
     // the priority sort
     const mockResolver = createMockDnsResolver({
@@ -482,15 +467,14 @@ module.exports.nullEntriesInMxResponseIgnored = async test => {
             decodedDomain: 'nullentry.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx.length, 1);
-        test.equal(delivery.mx[0].exchange, 'mail.example.com');
+        assert.strictEqual(delivery.mx.length, 1);
+        assert.strictEqual(delivery.mx[0].exchange, 'mail.example.com');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.allFalsyMxResponseFallsBackToA = async test => {
+test('allFalsyMxResponseFallsBackToA', async () => {
     // An MX answer containing only falsy garbage is treated like no answer at
     // all and falls back to A records
     const mockResolver = createMockDnsResolver({
@@ -506,16 +490,15 @@ module.exports.allFalsyMxResponseFallsBackToA = async test => {
             decodedDomain: 'garbage.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx.length, 1);
-        test.equal(delivery.mx[0].mx, false);
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.7']);
+        assert.strictEqual(delivery.mx.length, 1);
+        assert.strictEqual(delivery.mx[0].mx, false);
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.7']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.aFallbackServfail = async test => {
+test('aFallbackServfail', async () => {
     // A SERVFAIL on the A fallback must be a temporary DNS error, not masked
     // as "no records"
     const mockResolver = createMockDnsResolver({
@@ -531,15 +514,14 @@ module.exports.aFallbackServfail = async test => {
             decodedDomain: 'afail.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.temporary, true);
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.temporary, true);
     }
-    test.done();
-};
+});
 
-module.exports.aFallbackKeepsOneEntryAndRecordsBlockedOnce = async test => {
+test('aFallbackKeepsOneEntryAndRecordsBlockedOnce', async () => {
     // RFC 5321 Section 5.1: the domain is one implicit mail exchanger, so all its addresses
     // belong to a single entry. Splitting them left a rejected address behind as an empty
     // entry, which resolveIP then resolved again and rejected a second time.
@@ -558,15 +540,14 @@ module.exports.aFallbackKeepsOneEntryAndRecordsBlockedOnce = async test => {
 
     try {
         await resolveMx(delivery);
-        test.equal(delivery.mx.length, 1, 'the implicit MX must be a single entry');
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.9']);
-        test.deepEqual(
+        assert.strictEqual(delivery.mx.length, 1, 'the implicit MX must be a single entry');
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.9']);
+        assert.deepStrictEqual(
             delivery.blockedAddresses.map(entry => entry.ip),
             ['127.0.0.1'],
             'the rejected address must be recorded exactly once'
         );
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});

@@ -1,68 +1,66 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const formatAddress = require('../lib/format-address');
 
-module.exports.basic = async test => {
+test('basic', async () => {
     try {
         const delivery = await formatAddress({ domain: 'kreata.ee' });
-        test.equal(delivery.isIp, false);
-        test.equal(delivery.isPunycode, false);
-        test.equal(delivery.decodedDomain, 'kreata.ee');
+        assert.strictEqual(delivery.isIp, false);
+        assert.strictEqual(delivery.isPunycode, false);
+        assert.strictEqual(delivery.decodedDomain, 'kreata.ee');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.unicode = async test => {
+test('unicode', async () => {
     try {
         const delivery = await formatAddress({ domain: 'jõgeva.ee' });
-        test.equal(delivery.isIp, false);
-        test.equal(delivery.isPunycode, true);
-        test.equal(delivery.decodedDomain, 'xn--jgeva-dua.ee');
+        assert.strictEqual(delivery.isIp, false);
+        assert.strictEqual(delivery.isPunycode, true);
+        assert.strictEqual(delivery.decodedDomain, 'xn--jgeva-dua.ee');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipv4 = async test => {
+test('ipv4', async () => {
     try {
         const delivery = await formatAddress({ domain: '127.0.0.1' });
-        test.equal(delivery.isIp, true);
-        test.equal(delivery.isPunycode, false);
-        test.equal(delivery.decodedDomain, '127.0.0.1');
+        assert.strictEqual(delivery.isIp, true);
+        assert.strictEqual(delivery.isPunycode, false);
+        assert.strictEqual(delivery.decodedDomain, '127.0.0.1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipv6 = async test => {
+test('ipv6', async () => {
     try {
         const delivery = await formatAddress({ domain: '2001:db8:1ff::a0b:dbd0' });
-        test.equal(delivery.isIp, true);
-        test.equal(delivery.isPunycode, false);
-        test.equal(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
+        assert.strictEqual(delivery.isIp, true);
+        assert.strictEqual(delivery.isPunycode, false);
+        assert.strictEqual(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipv6Literal = async test => {
+test('ipv6Literal', async () => {
     try {
         const delivery = await formatAddress({ domain: '[IPv6:2001:db8:1ff::a0b:dbd0]' });
-        test.equal(delivery.isIp, true);
-        test.equal(delivery.isPunycode, false);
-        test.equal(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
+        assert.strictEqual(delivery.isIp, true);
+        assert.strictEqual(delivery.isPunycode, false);
+        assert.strictEqual(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipv6LiteralParsedRegardlessOfIgnoreIPv6 = async test => {
+test('ipv6LiteralParsedRegardlessOfIgnoreIPv6', async () => {
     // Parsing the target and deciding whether its address may be used are separate jobs.
     // Refusing here too rejected deliveries whose target was never going to be the
     // destination, such as an IPv6 target with the mx option supplying the real host, so
@@ -74,21 +72,19 @@ module.exports.ipv6LiteralParsedRegardlessOfIgnoreIPv6 = async test => {
                 ignoreIPv6: true
             }
         });
-        test.equal(delivery.isIp, true);
-        test.equal(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
+        assert.strictEqual(delivery.isIp, true);
+        assert.strictEqual(delivery.decodedDomain, '2001:db8:1ff::a0b:dbd0');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.invalidIpLiteral = async test => {
+test('invalidIpLiteral', async () => {
     try {
         await formatAddress({ domain: '[not-an-ip]' });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('properly formatted IP address'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('properly formatted IP address'));
     }
-    test.done();
-};
+});

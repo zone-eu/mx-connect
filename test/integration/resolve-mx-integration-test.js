@@ -1,8 +1,11 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const resolveMx = require('../../lib/resolve-mx');
 
-module.exports.realDnsLookup = async test => {
+test('realDnsLookup', async () => {
     try {
         const delivery = await resolveMx({
             domain: 'kreata.ee',
@@ -10,10 +13,9 @@ module.exports.realDnsLookup = async test => {
             isPunycode: false,
             decodedDomain: 'kreata.ee'
         });
-        test.ok(delivery.mx.length > 1);
-        test.equal(delivery.mx[0].exchange, 'aspmx.l.google.com');
+        assert.ok(delivery.mx.length > 1);
+        assert.strictEqual(delivery.mx[0].exchange, 'aspmx.l.google.com');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});

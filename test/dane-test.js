@@ -2,6 +2,9 @@
 
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const mxConnect = require('../lib/mx-connect');
 const dane = require('../lib/dane');
 const nodeCrypto = require('crypto');
@@ -10,157 +13,143 @@ const { createMockSocket } = require('./test-utils');
 /**
  * Test DANE module exports
  */
-module.exports.daneModuleExports = test => {
-    test.ok(dane.DANE_USAGE, 'DANE_USAGE should be exported');
-    test.ok(dane.DANE_SELECTOR, 'DANE_SELECTOR should be exported');
-    test.ok(dane.DANE_MATCHING_TYPE, 'DANE_MATCHING_TYPE should be exported');
-    test.ok(dane.EMPTY_DANE_HANDLER, 'EMPTY_DANE_HANDLER should be exported');
-    test.equal(typeof dane.hasNativeResolveTlsa, 'boolean', 'hasNativeResolveTlsa should be a boolean');
-    test.equal(typeof dane.resolveTlsaRecords, 'function', 'resolveTlsaRecords should be a function');
-    test.equal(typeof dane.verifyCertAgainstTlsa, 'function', 'verifyCertAgainstTlsa should be a function');
-    test.equal(typeof dane.createDaneVerifier, 'function', 'createDaneVerifier should be a function');
-    test.done();
-};
+test('daneModuleExports', async () => {
+    assert.ok(dane.DANE_USAGE, 'DANE_USAGE should be exported');
+    assert.ok(dane.DANE_SELECTOR, 'DANE_SELECTOR should be exported');
+    assert.ok(dane.DANE_MATCHING_TYPE, 'DANE_MATCHING_TYPE should be exported');
+    assert.ok(dane.EMPTY_DANE_HANDLER, 'EMPTY_DANE_HANDLER should be exported');
+    assert.strictEqual(typeof dane.hasNativeResolveTlsa, 'boolean', 'hasNativeResolveTlsa should be a boolean');
+    assert.strictEqual(typeof dane.resolveTlsaRecords, 'function', 'resolveTlsaRecords should be a function');
+    assert.strictEqual(typeof dane.verifyCertAgainstTlsa, 'function', 'verifyCertAgainstTlsa should be a function');
+    assert.strictEqual(typeof dane.createDaneVerifier, 'function', 'createDaneVerifier should be a function');
+});
 
 /**
  * Test DANE usage constants
  */
-module.exports.daneUsageConstants = test => {
-    test.equal(dane.DANE_USAGE.PKIX_TA, 0, 'PKIX_TA should be 0');
-    test.equal(dane.DANE_USAGE.PKIX_EE, 1, 'PKIX_EE should be 1');
-    test.equal(dane.DANE_USAGE.DANE_TA, 2, 'DANE_TA should be 2');
-    test.equal(dane.DANE_USAGE.DANE_EE, 3, 'DANE_EE should be 3');
-    test.done();
-};
+test('daneUsageConstants', async () => {
+    assert.strictEqual(dane.DANE_USAGE.PKIX_TA, 0, 'PKIX_TA should be 0');
+    assert.strictEqual(dane.DANE_USAGE.PKIX_EE, 1, 'PKIX_EE should be 1');
+    assert.strictEqual(dane.DANE_USAGE.DANE_TA, 2, 'DANE_TA should be 2');
+    assert.strictEqual(dane.DANE_USAGE.DANE_EE, 3, 'DANE_EE should be 3');
+});
 
 /**
  * Test DANE selector constants
  */
-module.exports.daneSelectorConstants = test => {
-    test.equal(dane.DANE_SELECTOR.FULL_CERT, 0, 'FULL_CERT should be 0');
-    test.equal(dane.DANE_SELECTOR.SPKI, 1, 'SPKI should be 1');
-    test.done();
-};
+test('daneSelectorConstants', async () => {
+    assert.strictEqual(dane.DANE_SELECTOR.FULL_CERT, 0, 'FULL_CERT should be 0');
+    assert.strictEqual(dane.DANE_SELECTOR.SPKI, 1, 'SPKI should be 1');
+});
 
 /**
  * Test DANE matching type constants
  */
-module.exports.daneMatchingTypeConstants = test => {
-    test.equal(dane.DANE_MATCHING_TYPE.FULL, 0, 'FULL should be 0');
-    test.equal(dane.DANE_MATCHING_TYPE.SHA256, 1, 'SHA256 should be 1');
-    test.equal(dane.DANE_MATCHING_TYPE.SHA512, 2, 'SHA512 should be 2');
-    test.done();
-};
+test('daneMatchingTypeConstants', async () => {
+    assert.strictEqual(dane.DANE_MATCHING_TYPE.FULL, 0, 'FULL should be 0');
+    assert.strictEqual(dane.DANE_MATCHING_TYPE.SHA256, 1, 'SHA256 should be 1');
+    assert.strictEqual(dane.DANE_MATCHING_TYPE.SHA512, 2, 'SHA512 should be 2');
+});
 
 /**
  * Test hashCertData function with SHA-256
  */
-module.exports.hashCertDataSha256 = test => {
+test('hashCertDataSha256', async () => {
     const testData = Buffer.from('test certificate data');
     const expectedHash = nodeCrypto.createHash('sha256').update(testData).digest();
     const result = dane.hashCertData(testData, dane.DANE_MATCHING_TYPE.SHA256);
-    test.ok(Buffer.isBuffer(result), 'Result should be a Buffer');
-    test.ok(expectedHash.equals(result), 'SHA-256 hash should match');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'Result should be a Buffer');
+    assert.ok(expectedHash.equals(result), 'SHA-256 hash should match');
+});
 
 /**
  * Test hashCertData function with SHA-512
  */
-module.exports.hashCertDataSha512 = test => {
+test('hashCertDataSha512', async () => {
     const testData = Buffer.from('test certificate data');
     const expectedHash = nodeCrypto.createHash('sha512').update(testData).digest();
     const result = dane.hashCertData(testData, dane.DANE_MATCHING_TYPE.SHA512);
-    test.ok(Buffer.isBuffer(result), 'Result should be a Buffer');
-    test.ok(expectedHash.equals(result), 'SHA-512 hash should match');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'Result should be a Buffer');
+    assert.ok(expectedHash.equals(result), 'SHA-512 hash should match');
+});
 
 /**
  * Test hashCertData function with full data (no hash)
  */
-module.exports.hashCertDataFull = test => {
+test('hashCertDataFull', async () => {
     const testData = Buffer.from('test certificate data');
     const result = dane.hashCertData(testData, dane.DANE_MATCHING_TYPE.FULL);
-    test.ok(Buffer.isBuffer(result), 'Result should be a Buffer');
-    test.ok(testData.equals(result), 'Full data should be returned unchanged');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'Result should be a Buffer');
+    assert.ok(testData.equals(result), 'Full data should be returned unchanged');
+});
 
 /**
  * Test hashCertData with null input
  */
-module.exports.hashCertDataNull = test => {
+test('hashCertDataNull', async () => {
     const result = dane.hashCertData(null, dane.DANE_MATCHING_TYPE.SHA256);
-    test.equal(result, null, 'Result should be null for null input');
-    test.done();
-};
+    assert.strictEqual(result, null, 'Result should be null for null input');
+});
 
 /**
  * Test verifyCertAgainstTlsa with no records
  */
-module.exports.verifyCertNoRecords = test => {
+test('verifyCertNoRecords', async () => {
     const result = dane.verifyCertAgainstTlsa({}, []);
-    test.equal(result.valid, true, 'Should be valid when no records exist');
-    test.equal(result.noRecords, true, 'Should indicate no records');
-    test.equal(result.matchedRecord, null, 'Should have no matched record');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'Should be valid when no records exist');
+    assert.strictEqual(result.noRecords, true, 'Should indicate no records');
+    assert.strictEqual(result.matchedRecord, null, 'Should have no matched record');
+});
 
 /**
  * Test verifyCertAgainstTlsa with no certificate
  */
-module.exports.verifyCertNoCert = test => {
+test('verifyCertNoCert', async () => {
     const tlsaRecords = [{ usage: 3, selector: 1, mtype: 1, cert: Buffer.alloc(32) }];
     const result = dane.verifyCertAgainstTlsa(null, tlsaRecords);
-    test.equal(result.valid, false, 'Should be invalid when no certificate');
-    test.ok(result.error, 'Should have an error message');
-    test.done();
-};
+    assert.strictEqual(result.valid, false, 'Should be invalid when no certificate');
+    assert.ok(result.error, 'Should have an error message');
+});
 
 /**
  * Test createDaneVerifier returns a function
  */
-module.exports.createDaneVerifierReturnsFunction = test => {
+test('createDaneVerifierReturnsFunction', async () => {
     const verifier = dane.createDaneVerifier([], {});
-    test.equal(typeof verifier, 'function', 'Should return a function');
-    test.done();
-};
+    assert.strictEqual(typeof verifier, 'function', 'Should return a function');
+});
 
 /**
  * Test createDaneVerifier with no records returns undefined (success)
  */
-module.exports.createDaneVerifierNoRecords = test => {
+test('createDaneVerifierNoRecords', async () => {
     const verifier = dane.createDaneVerifier([], {});
     const result = verifier('example.com', {});
-    test.equal(result, undefined, 'Should return undefined (success) when no records');
-    test.done();
-};
+    assert.strictEqual(result, undefined, 'Should return undefined (success) when no records');
+});
 
 /**
  * Test EMPTY_DANE_HANDLER
  */
-module.exports.emptyDaneHandler = async test => {
-    test.equal(dane.EMPTY_DANE_HANDLER.enabled, false, 'Should be disabled by default');
+test('emptyDaneHandler', async () => {
+    assert.strictEqual(dane.EMPTY_DANE_HANDLER.enabled, false, 'Should be disabled by default');
     const records = await dane.EMPTY_DANE_HANDLER.resolveTlsa('test.example.com');
-    test.deepEqual(records, [], 'Should return empty array');
-    test.done();
-};
+    assert.deepStrictEqual(records, [], 'Should return empty array');
+});
 
 /**
  * Test mx-connect exports DANE module
  */
-module.exports.mxConnectExportsDane = test => {
-    test.ok(mxConnect.dane, 'mx-connect should export dane module');
-    test.equal(typeof mxConnect.dane.resolveTlsaRecords, 'function', 'Should export resolveTlsaRecords');
-    test.equal(typeof mxConnect.dane.verifyCertAgainstTlsa, 'function', 'Should export verifyCertAgainstTlsa');
-    test.done();
-};
+test('mxConnectExportsDane', async () => {
+    assert.ok(mxConnect.dane, 'mx-connect should export dane module');
+    assert.strictEqual(typeof mxConnect.dane.resolveTlsaRecords, 'function', 'Should export resolveTlsaRecords');
+    assert.strictEqual(typeof mxConnect.dane.verifyCertAgainstTlsa, 'function', 'Should export verifyCertAgainstTlsa');
+});
 
 /**
  * Test DANE with custom resolver using mock socket
  */
-module.exports.daneWithCustomResolver = test => {
+test('daneWithCustomResolver', (t, done) => {
     let tlsaLookupCalled = false;
 
     const mockResolveTlsa = async () => {
@@ -191,19 +180,19 @@ module.exports.daneWithCustomResolver = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
-            test.ok(tlsaLookupCalled, 'Custom resolveTlsa should have been called');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
+            assert.ok(tlsaLookupCalled, 'Custom resolveTlsa should have been called');
+            done();
         }
     );
-};
+});
 
 /**
  * Test DANE with custom resolver returning TLSA records
  */
-module.exports.daneWithTlsaRecords = test => {
+test('daneWithTlsaRecords', (t, done) => {
     let logMessages = [];
 
     // Mock TLSA records (these won't match the actual certificate, but tests the flow)
@@ -243,33 +232,33 @@ module.exports.daneWithTlsaRecords = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
 
             // Check that TLSA records were found
             const tlsaFoundLog = logMessages.find(log => log.msg === 'TLSA records found');
-            test.ok(tlsaFoundLog, 'Should log TLSA records found');
-            test.equal(tlsaFoundLog.recordCount, 1, 'Should have 1 TLSA record');
+            assert.ok(tlsaFoundLog, 'Should log TLSA records found');
+            assert.strictEqual(tlsaFoundLog.recordCount, 1, 'Should have 1 TLSA record');
 
             // Check that DANE was enabled for connection
             const daneEnabledLog = logMessages.find(log => log.msg === 'DANE enabled for connection');
-            test.ok(daneEnabledLog, 'Should log DANE enabled for connection');
+            assert.ok(daneEnabledLog, 'Should log DANE enabled for connection');
 
             // Check connection has DANE properties
-            test.ok(connection.daneEnabled, 'Connection should have daneEnabled flag');
-            test.ok(connection.tlsaRecords, 'Connection should have tlsaRecords');
-            test.equal(connection.tlsaRecords.length, 1, 'Should have 1 TLSA record');
+            assert.ok(connection.daneEnabled, 'Connection should have daneEnabled flag');
+            assert.ok(connection.tlsaRecords, 'Connection should have tlsaRecords');
+            assert.strictEqual(connection.tlsaRecords.length, 1, 'Should have 1 TLSA record');
 
-            test.done();
+            done();
         }
     );
-};
+});
 
 /**
  * Test DANE with resolver that throws error (verify mode rejects connection)
  */
-module.exports.daneResolverError = test => {
+test('daneResolverError', (t, done) => {
     const mockResolveTlsa = async () => {
         const err = new Error('DNS lookup failed');
         err.code = 'ESERVFAIL';
@@ -298,20 +287,20 @@ module.exports.daneResolverError = test => {
             }
         },
         (err, connection) => {
-            test.ok(err, 'Should return an error when DANE lookup fails in verify mode');
-            test.ok(!connection, 'Connection should not exist');
-            test.ok(err.message.includes('DANE TLSA lookup failed'), 'Error should mention DANE lookup failure');
-            test.equal(err.category, 'dane', 'Error category should be dane');
-            test.done();
+            assert.ok(err, 'Should return an error when DANE lookup fails in verify mode');
+            assert.ok(!connection, 'Connection should not exist');
+            assert.ok(err.message.includes('DANE TLSA lookup failed'), 'Error should mention DANE lookup failure');
+            assert.strictEqual(err.category, 'dane', 'Error category should be dane');
+            done();
         }
     );
-};
+});
 
 /**
  * Test that verify:false no longer bypasses DANE enforcement (RFC 7672) and
  * that passing it logs a deprecation notice
  */
-module.exports.daneResolverErrorVerifyFalseStillEnforced = test => {
+test('daneResolverErrorVerifyFalseStillEnforced', (t, done) => {
     let logMessages = [];
 
     const mockResolveTlsa = async () => {
@@ -345,26 +334,26 @@ module.exports.daneResolverErrorVerifyFalseStillEnforced = test => {
             }
         },
         (err, connection) => {
-            test.ok(err, 'verify:false must not bypass DANE enforcement');
-            test.ok(!connection, 'Connection should not exist');
-            test.equal(err.category, 'dane', 'Error category should be dane');
+            assert.ok(err, 'verify:false must not bypass DANE enforcement');
+            assert.ok(!connection, 'Connection should not exist');
+            assert.strictEqual(err.category, 'dane', 'Error category should be dane');
 
             const deprecationLog = logMessages.find(log => log.msg && log.msg.includes('dane.verify option is deprecated'));
-            test.ok(deprecationLog, 'Should log a deprecation notice for verify:false');
+            assert.ok(deprecationLog, 'Should log a deprecation notice for verify:false');
 
             const failLog = logMessages.find(log => log.msg === 'TLSA lookup failed');
-            test.ok(failLog, 'Should log TLSA lookup failure');
-            test.ok(failLog.error, 'Should include error message');
+            assert.ok(failLog, 'Should log TLSA lookup failure');
+            assert.ok(failLog.error, 'Should include error message');
 
-            test.done();
+            done();
         }
     );
-};
+});
 
 /**
  * Test DANE with NODATA response (no records exist)
  */
-module.exports.daneNoDataResponse = test => {
+test('daneNoDataResponse', (t, done) => {
     const mockResolveTlsa = async () => {
         const err = new Error('No data');
         err.code = 'ENODATA';
@@ -393,19 +382,19 @@ module.exports.daneNoDataResponse = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
             // Should succeed - NODATA means no DANE records, not an error
-            test.done();
+            done();
         }
     );
-};
+});
 
 /**
  * Test DANE explicitly disabled
  */
-module.exports.daneExplicitlyDisabled = test => {
+test('daneExplicitlyDisabled', (t, done) => {
     let tlsaLookupCalled = false;
 
     const mockResolveTlsa = async () => {
@@ -434,34 +423,33 @@ module.exports.daneExplicitlyDisabled = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
-            test.ok(!tlsaLookupCalled, 'resolveTlsa should not be called when DANE is disabled');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
+            assert.ok(!tlsaLookupCalled, 'resolveTlsa should not be called when DANE is disabled');
+            done();
         }
     );
-};
+});
 
 /**
  * Test resolveTlsaRecords with custom resolver
  */
-module.exports.resolveTlsaRecordsCustomResolver = async test => {
+test('resolveTlsaRecordsCustomResolver', async () => {
     const mockRecords = [{ usage: 3, selector: 1, mtype: 1, cert: Buffer.alloc(32) }];
     const mockResolver = async tlsaName => {
-        test.equal(tlsaName, '_25._tcp.mail.example.com', 'Should format TLSA name correctly');
+        assert.strictEqual(tlsaName, '_25._tcp.mail.example.com', 'Should format TLSA name correctly');
         return mockRecords;
     };
 
     const records = await dane.resolveTlsaRecords('mail.example.com', 25, { resolveTlsa: mockResolver });
-    test.deepEqual(records, mockRecords, 'Should return records from custom resolver');
-    test.done();
-};
+    assert.deepStrictEqual(records, mockRecords, 'Should return records from custom resolver');
+});
 
 /**
  * Test resolveTlsaRecords handles ENODATA gracefully
  */
-module.exports.resolveTlsaRecordsNoData = async test => {
+test('resolveTlsaRecordsNoData', async () => {
     const mockResolver = async () => {
         const err = new Error('No data');
         err.code = 'ENODATA';
@@ -469,14 +457,13 @@ module.exports.resolveTlsaRecordsNoData = async test => {
     };
 
     const records = await dane.resolveTlsaRecords('mail.example.com', 25, { resolveTlsa: mockResolver });
-    test.deepEqual(records, [], 'Should return empty array for ENODATA');
-    test.done();
-};
+    assert.deepStrictEqual(records, [], 'Should return empty array for ENODATA');
+});
 
 /**
  * Test resolveTlsaRecords handles ENOTFOUND gracefully
  */
-module.exports.resolveTlsaRecordsNotFound = async test => {
+test('resolveTlsaRecordsNotFound', async () => {
     const mockResolver = async () => {
         const err = new Error('Not found');
         err.code = 'ENOTFOUND';
@@ -484,14 +471,13 @@ module.exports.resolveTlsaRecordsNotFound = async test => {
     };
 
     const records = await dane.resolveTlsaRecords('mail.example.com', 25, { resolveTlsa: mockResolver });
-    test.deepEqual(records, [], 'Should return empty array for ENOTFOUND');
-    test.done();
-};
+    assert.deepStrictEqual(records, [], 'Should return empty array for ENOTFOUND');
+});
 
 /**
  * Test resolveTlsaRecords propagates other errors
  */
-module.exports.resolveTlsaRecordsOtherError = async test => {
+test('resolveTlsaRecordsOtherError', async () => {
     const mockResolver = async () => {
         const err = new Error('Server failure');
         err.code = 'ESERVFAIL';
@@ -500,27 +486,25 @@ module.exports.resolveTlsaRecordsOtherError = async test => {
 
     try {
         await dane.resolveTlsaRecords('mail.example.com', 25, { resolveTlsa: mockResolver });
-        test.ok(false, 'Should have thrown an error');
+        assert.ok(false, 'Should have thrown an error');
     } catch (err) {
-        test.equal(err.code, 'ESERVFAIL', 'Should propagate non-NODATA errors');
+        assert.strictEqual(err.code, 'ESERVFAIL', 'Should propagate non-NODATA errors');
     }
-    test.done();
-};
+});
 
 /**
  * Test hasNativeResolveTlsa detection
  */
-module.exports.hasNativeResolveTlsaDetection = test => {
+test('hasNativeResolveTlsaDetection', async () => {
     const dns = require('dns');
     const expected = typeof dns.resolveTlsa === 'function';
-    test.equal(dane.hasNativeResolveTlsa, expected, 'hasNativeResolveTlsa should match actual dns module');
-    test.done();
-};
+    assert.strictEqual(dane.hasNativeResolveTlsa, expected, 'hasNativeResolveTlsa should match actual dns module');
+});
 
 /**
  * Test DANE with pre-resolved MX that includes TLSA records
  */
-module.exports.daneWithPreresolvedMx = test => {
+test('daneWithPreresolvedMx', (t, done) => {
     let logMessages = [];
 
     const mockTlsaRecords = [
@@ -556,23 +540,23 @@ module.exports.daneWithPreresolvedMx = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
 
             // TLSA records should be passed through from pre-resolved MX
-            test.ok(connection.tlsaRecords, 'Connection should have tlsaRecords');
-            test.equal(connection.tlsaRecords.length, 1, 'Should have 1 TLSA record');
+            assert.ok(connection.tlsaRecords, 'Connection should have tlsaRecords');
+            assert.strictEqual(connection.tlsaRecords.length, 1, 'Should have 1 TLSA record');
 
-            test.done();
+            done();
         }
     );
-};
+});
 
 /**
  * Test DANE stays disabled without explicit enabled:true
  */
-module.exports.daneAutoDetectNoResolver = test => {
+test('daneAutoDetectNoResolver', (t, done) => {
     let tlsaLookupCalled = false;
 
     mxConnect(
@@ -600,61 +584,57 @@ module.exports.daneAutoDetectNoResolver = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
-            test.ok(!tlsaLookupCalled, 'resolveTlsa should not be called when enabled is not set');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
+            assert.ok(!tlsaLookupCalled, 'resolveTlsa should not be called when enabled is not set');
+            done();
         }
     );
-};
+});
 
 /**
  * Test extractSPKI with malformed certificate (Issue #1)
  */
-module.exports.extractSPKIMalformedCert = test => {
+test('extractSPKIMalformedCert', async () => {
     // Test with null
     let result = dane.extractSPKI(null);
-    test.equal(result, null, 'Should return null for null certificate');
+    assert.strictEqual(result, null, 'Should return null for null certificate');
 
     // Test with empty object
     result = dane.extractSPKI({});
-    test.equal(result, null, 'Should return null for empty certificate');
+    assert.strictEqual(result, null, 'Should return null for empty certificate');
 
     // Test with invalid publicKey
     result = dane.extractSPKI({ publicKey: 'invalid-key-data' });
-    test.equal(result, null, 'Should return null for invalid publicKey');
+    assert.strictEqual(result, null, 'Should return null for invalid publicKey');
 
     // Test with malformed publicKey buffer
     result = dane.extractSPKI({ publicKey: Buffer.from('invalid') });
-    test.equal(result, null, 'Should return null for malformed publicKey buffer');
-
-    test.done();
-};
+    assert.strictEqual(result, null, 'Should return null for malformed publicKey buffer');
+});
 
 /**
  * Test getCertData with malformed certificate (Issue #2)
  */
-module.exports.getCertDataMalformedCert = test => {
+test('getCertDataMalformedCert', async () => {
     // Test with null
     let result = dane.getCertData(null, dane.DANE_SELECTOR.FULL_CERT);
-    test.equal(result, null, 'Should return null for null certificate');
+    assert.strictEqual(result, null, 'Should return null for null certificate');
 
     // Test with empty object (no raw property)
     result = dane.getCertData({}, dane.DANE_SELECTOR.FULL_CERT);
-    test.equal(result, null, 'Should return null for certificate without raw');
+    assert.strictEqual(result, null, 'Should return null for certificate without raw');
 
     // Test with SPKI selector on malformed cert
     result = dane.getCertData({ publicKey: 'invalid' }, dane.DANE_SELECTOR.SPKI);
-    test.equal(result, null, 'Should return null for malformed certificate with SPKI selector');
-
-    test.done();
-};
+    assert.strictEqual(result, null, 'Should return null for malformed certificate with SPKI selector');
+});
 
 /**
  * Test verifyCertAgainstTlsa with malformed TLSA records (Issue #4)
  */
-module.exports.verifyCertMalformedTlsaRecords = test => {
+test('verifyCertMalformedTlsaRecords', async () => {
     const mockCert = {
         raw: Buffer.from('test-cert-data'),
         publicKey: null
@@ -663,25 +643,23 @@ module.exports.verifyCertMalformedTlsaRecords = test => {
     // Test with record missing cert field
     const recordsNoCert = [{ usage: 3, selector: 0, mtype: 1 }];
     let result = dane.verifyCertAgainstTlsa(mockCert, recordsNoCert);
-    test.equal(result.valid, false, 'Should be invalid when record has no cert field');
+    assert.strictEqual(result.valid, false, 'Should be invalid when record has no cert field');
 
     // Test with invalid usage value (should not crash)
     const recordsInvalidUsage = [{ usage: 99, selector: 0, mtype: 1, cert: Buffer.alloc(32) }];
     result = dane.verifyCertAgainstTlsa(mockCert, recordsInvalidUsage);
-    test.equal(result.valid, false, 'Should be invalid for unknown usage type');
+    assert.strictEqual(result.valid, false, 'Should be invalid for unknown usage type');
 
     // Test with invalid selector value (should not crash)
     const recordsInvalidSelector = [{ usage: 3, selector: 99, mtype: 1, cert: Buffer.alloc(32) }];
     result = dane.verifyCertAgainstTlsa(mockCert, recordsInvalidSelector);
-    test.equal(result.valid, false, 'Should be invalid for unknown selector');
-
-    test.done();
-};
+    assert.strictEqual(result.valid, false, 'Should be invalid for unknown selector');
+});
 
 /**
  * Test createDaneVerifier catches exceptions (Issue #1, #2, #4)
  */
-module.exports.createDaneVerifierCatchesExceptions = test => {
+test('createDaneVerifierCatchesExceptions', async () => {
     const tlsaRecords = [
         {
             usage: 3,
@@ -697,45 +675,41 @@ module.exports.createDaneVerifierCatchesExceptions = test => {
     let result;
     try {
         result = verifier('example.com', { publicKey: 'invalid' });
-        test.ok(true, 'Should not throw for malformed certificate');
+        assert.ok(true, 'Should not throw for malformed certificate');
     } catch (err) {
-        test.ok(false, 'Should not throw exception: ' + err.message);
+        assert.ok(false, 'Should not throw exception: ' + err.message);
     }
 
     // Result should be an error (verification failed), not an exception
-    test.ok(result instanceof Error || result === undefined, 'Should return error or undefined, not throw');
-
-    test.done();
-};
+    assert.ok(result instanceof Error || result === undefined, 'Should return error or undefined, not throw');
+});
 
 /**
  * Test isNoRecordsError helper function
  */
-module.exports.isNoRecordsErrorHelper = test => {
-    test.ok(dane.isNoRecordsError, 'isNoRecordsError should be exported');
-    test.equal(dane.isNoRecordsError('ENODATA'), true, 'ENODATA should be a no-records error');
-    test.equal(dane.isNoRecordsError('ENOTFOUND'), true, 'ENOTFOUND should be a no-records error');
-    test.equal(dane.isNoRecordsError('ENOENT'), true, 'ENOENT should be a no-records error');
-    test.equal(dane.isNoRecordsError('ESERVFAIL'), false, 'ESERVFAIL should not be a no-records error');
-    test.equal(dane.isNoRecordsError('ETIMEDOUT'), false, 'ETIMEDOUT should not be a no-records error');
-    test.equal(dane.isNoRecordsError(undefined), false, 'undefined should not be a no-records error');
-    test.done();
-};
+test('isNoRecordsErrorHelper', async () => {
+    assert.ok(dane.isNoRecordsError, 'isNoRecordsError should be exported');
+    assert.strictEqual(dane.isNoRecordsError('ENODATA'), true, 'ENODATA should be a no-records error');
+    assert.strictEqual(dane.isNoRecordsError('ENOTFOUND'), true, 'ENOTFOUND should be a no-records error');
+    assert.strictEqual(dane.isNoRecordsError('ENOENT'), true, 'ENOENT should be a no-records error');
+    assert.strictEqual(dane.isNoRecordsError('ESERVFAIL'), false, 'ESERVFAIL should not be a no-records error');
+    assert.strictEqual(dane.isNoRecordsError('ETIMEDOUT'), false, 'ETIMEDOUT should not be a no-records error');
+    assert.strictEqual(dane.isNoRecordsError(undefined), false, 'undefined should not be a no-records error');
+});
 
 /**
  * Test hasNativePromiseResolveTlsa detection
  */
-module.exports.hasNativePromiseResolveTlsaDetection = test => {
+test('hasNativePromiseResolveTlsaDetection', async () => {
     const dns = require('dns');
     const expected = dns.promises && typeof dns.promises.resolveTlsa === 'function';
-    test.equal(dane.hasNativePromiseResolveTlsa, expected, 'hasNativePromiseResolveTlsa should match actual dns.promises module');
-    test.done();
-};
+    assert.strictEqual(dane.hasNativePromiseResolveTlsa, expected, 'hasNativePromiseResolveTlsa should match actual dns.promises module');
+});
 
 /**
  * Test verifyCertAgainstTlsa with DANE-TA without chain (Issue #3)
  */
-module.exports.verifyCertDaneTaWithoutChain = test => {
+test('verifyCertDaneTaWithoutChain', async () => {
     const mockCert = {
         raw: Buffer.from('test-cert-data'),
         publicKey: null
@@ -752,17 +726,15 @@ module.exports.verifyCertDaneTaWithoutChain = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(mockCert, daneTeRecords);
-    test.equal(result.valid, false, 'Should be invalid when DANE-TA has no chain');
-    test.ok(result.error, 'Should have error message');
-    test.ok(result.error.includes('chain'), 'Error should mention chain requirement');
-
-    test.done();
-};
+    assert.strictEqual(result.valid, false, 'Should be invalid when DANE-TA has no chain');
+    assert.ok(result.error, 'Should have error message');
+    assert.ok(result.error.includes('chain'), 'Error should mention chain requirement');
+});
 
 /**
  * Test verifyCertAgainstTlsa with PKIX-TA without chain (Issue #3)
  */
-module.exports.verifyCertPkixTaWithoutChain = test => {
+test('verifyCertPkixTaWithoutChain', async () => {
     const mockCert = {
         raw: Buffer.from('test-cert-data'),
         publicKey: null
@@ -779,28 +751,24 @@ module.exports.verifyCertPkixTaWithoutChain = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(mockCert, pkixTaRecords);
-    test.equal(result.valid, false, 'Should be invalid when PKIX-TA has no chain');
-    test.ok(result.error, 'Should have error message');
-    test.ok(result.error.includes('chain'), 'Error should mention chain requirement');
-
-    test.done();
-};
+    assert.strictEqual(result.valid, false, 'Should be invalid when PKIX-TA has no chain');
+    assert.ok(result.error, 'Should have error message');
+    assert.ok(result.error.includes('chain'), 'Error should mention chain requirement');
+});
 
 /**
  * Test hashCertData handles exceptions gracefully
  */
-module.exports.hashCertDataHandlesExceptions = test => {
+test('hashCertDataHandlesExceptions', async () => {
     // Test with invalid data type that might cause issues
     const result = dane.hashCertData(undefined, dane.DANE_MATCHING_TYPE.SHA256);
-    test.equal(result, null, 'Should return null for undefined data');
-
-    test.done();
-};
+    assert.strictEqual(result, null, 'Should return null for undefined data');
+});
 
 /**
  * Test verifyCertAgainstTlsa with string cert data (hex encoded)
  */
-module.exports.verifyCertWithStringCertData = test => {
+test('verifyCertWithStringCertData', async () => {
     const testData = Buffer.from('test-cert-data');
     const hash = nodeCrypto.createHash('sha256').update(testData).digest();
 
@@ -819,11 +787,9 @@ module.exports.verifyCertWithStringCertData = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(mockCert, records);
-    test.equal(result.valid, true, 'Should handle hex-encoded cert data');
-    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
-
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'Should handle hex-encoded cert data');
+    assert.strictEqual(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+});
 
 /**
  * Pre-generated self-signed EC P-256 certificate (CN=dane-test, 100-year validity).
@@ -877,21 +843,20 @@ function makeRawPeerCert(certDer, spkiDer) {
  * and .raw (full DER cert). extractSPKI must use .raw to reconstruct the
  * correct SPKI, because .pubkey is NOT the SPKI.
  */
-module.exports.extractSPKIRawPeerCert = test => {
+test('extractSPKIRawPeerCert', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
     const result = dane.extractSPKI(rawPeerCert);
-    test.ok(Buffer.isBuffer(result), 'Should return a Buffer');
-    test.ok(spkiDer.equals(result), 'Should return the correct SPKI DER');
-    test.equal(result.length, spkiDer.length, 'Buffer length should match SPKI DER');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'Should return a Buffer');
+    assert.ok(spkiDer.equals(result), 'Should return the correct SPKI DER');
+    assert.strictEqual(result.length, spkiDer.length, 'Buffer length should match SPKI DER');
+});
 
 /**
  * Test extractSPKI with X509Certificate object (.publicKey KeyObject)
  */
-module.exports.extractSPKIX509Certificate = test => {
+test('extractSPKIX509Certificate', async () => {
     const { certDer, spkiDer, publicKey } = generateTestCert();
 
     // Simulate an X509Certificate object: .publicKey is a KeyObject.
@@ -901,15 +866,14 @@ module.exports.extractSPKIX509Certificate = test => {
     };
 
     const result = dane.extractSPKI(mockX509);
-    test.ok(Buffer.isBuffer(result), 'Should return a Buffer');
-    test.ok(spkiDer.equals(result), 'Should match the exported SPKI DER');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'Should return a Buffer');
+    assert.ok(spkiDer.equals(result), 'Should match the exported SPKI DER');
+});
 
 /**
  * Test extractSPKI with PEM-encoded public key string
  */
-module.exports.extractSPKIPemString = test => {
+test('extractSPKIPemString', async () => {
     const { spkiDer, publicKey } = generateTestCert();
     const spkiPem = publicKey.export({ type: 'spki', format: 'pem' });
 
@@ -918,17 +882,16 @@ module.exports.extractSPKIPemString = test => {
     };
 
     const result = dane.extractSPKI(mockCert);
-    test.ok(Buffer.isBuffer(result), 'Should return a Buffer');
-    test.ok(spkiDer.equals(result), 'PEM extraction should match DER');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'Should return a Buffer');
+    assert.ok(spkiDer.equals(result), 'PEM extraction should match DER');
+});
 
 /**
  * Test extractSPKI returns consistent results for raw peer cert and X509Certificate
  *
  * Both cert representations must produce the same SPKI DER output.
  */
-module.exports.extractSPKIConsistentAcrossCertTypes = test => {
+test('extractSPKIConsistentAcrossCertTypes', async () => {
     const { certDer, spkiDer, publicKey } = generateTestCert();
 
     // Simulate raw peer cert
@@ -940,11 +903,10 @@ module.exports.extractSPKIConsistentAcrossCertTypes = test => {
     const result1 = dane.extractSPKI(rawPeerCert);
     const result2 = dane.extractSPKI(x509Cert);
 
-    test.ok(Buffer.isBuffer(result1), 'Raw peer cert result should be a Buffer');
-    test.ok(Buffer.isBuffer(result2), 'X509Certificate result should be a Buffer');
-    test.ok(result1.equals(result2), 'Both cert types should produce identical SPKI');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result1), 'Raw peer cert result should be a Buffer');
+    assert.ok(Buffer.isBuffer(result2), 'X509Certificate result should be a Buffer');
+    assert.ok(result1.equals(result2), 'Both cert types should produce identical SPKI');
+});
 
 /**
  * Test full DANE-EE (usage=3) SPKI SHA-256 verification with raw peer cert
@@ -952,7 +914,7 @@ module.exports.extractSPKIConsistentAcrossCertTypes = test => {
  * This is the most common DANE configuration (e.g., mx1.forwardemail.net).
  * Verifies the complete pipeline: extractSPKI → hash → compare against TLSA.
  */
-module.exports.verifyCertDaneEESPKISha256RawPeerCert = test => {
+test('verifyCertDaneEESPKISha256RawPeerCert', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
@@ -967,18 +929,17 @@ module.exports.verifyCertDaneEESPKISha256RawPeerCert = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, true, 'DANE-EE SPKI SHA-256 should verify against raw peer cert');
-    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
-    test.ok(result.matchedRecord, 'Should have a matched record');
-    test.equal(result.matchedRecord.usage, 3, 'Matched record usage should be 3');
-    test.equal(result.matchedRecord.selector, 1, 'Matched record selector should be 1');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'DANE-EE SPKI SHA-256 should verify against raw peer cert');
+    assert.strictEqual(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+    assert.ok(result.matchedRecord, 'Should have a matched record');
+    assert.strictEqual(result.matchedRecord.usage, 3, 'Matched record usage should be 3');
+    assert.strictEqual(result.matchedRecord.selector, 1, 'Matched record selector should be 1');
+});
 
 /**
  * Test full DANE-EE (usage=3) SPKI SHA-256 verification with X509Certificate
  */
-module.exports.verifyCertDaneEESPKISha256X509Certificate = test => {
+test('verifyCertDaneEESPKISha256X509Certificate', async () => {
     const { certDer, spkiDer, publicKey } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
 
@@ -998,15 +959,14 @@ module.exports.verifyCertDaneEESPKISha256X509Certificate = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(x509Cert, tlsaRecords);
-    test.equal(result.valid, true, 'DANE-EE SPKI SHA-256 should verify against X509Certificate');
-    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'DANE-EE SPKI SHA-256 should verify against X509Certificate');
+    assert.strictEqual(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+});
 
 /**
  * Test DANE-EE SPKI SHA-512 verification
  */
-module.exports.verifyCertDaneEESPKISha512 = test => {
+test('verifyCertDaneEESPKISha512', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha512').update(spkiDer).digest();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
@@ -1021,15 +981,14 @@ module.exports.verifyCertDaneEESPKISha512 = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, true, 'DANE-EE SPKI SHA-512 should verify');
-    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'DANE-EE SPKI SHA-512 should verify');
+    assert.strictEqual(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+});
 
 /**
  * Test DANE-EE SPKI full match (mtype=0, no hash)
  */
-module.exports.verifyCertDaneEESPKIFullMatch = test => {
+test('verifyCertDaneEESPKIFullMatch', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
@@ -1043,14 +1002,13 @@ module.exports.verifyCertDaneEESPKIFullMatch = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, true, 'DANE-EE SPKI full match should verify');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'DANE-EE SPKI full match should verify');
+});
 
 /**
  * Test DANE-EE verification fails with wrong TLSA hash
  */
-module.exports.verifyCertDaneEEWrongHash = test => {
+test('verifyCertDaneEEWrongHash', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
@@ -1064,16 +1022,15 @@ module.exports.verifyCertDaneEEWrongHash = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, false, 'Should fail with wrong TLSA hash');
-    test.ok(result.error, 'Should have error message');
-    test.ok(result.error.includes('did not match'), 'Error should mention no match');
-    test.done();
-};
+    assert.strictEqual(result.valid, false, 'Should fail with wrong TLSA hash');
+    assert.ok(result.error, 'Should have error message');
+    assert.ok(result.error.includes('did not match'), 'Error should mention no match');
+});
 
 /**
  * Test DANE-EE full cert (selector=0) verification
  */
-module.exports.verifyCertDaneEEFullCertSelector = test => {
+test('verifyCertDaneEEFullCertSelector', async () => {
     const { certDer } = generateTestCert();
     const certHash = nodeCrypto.createHash('sha256').update(certDer).digest();
 
@@ -1092,15 +1049,14 @@ module.exports.verifyCertDaneEEFullCertSelector = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, true, 'DANE-EE full cert SHA-256 should verify');
-    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'DANE-EE full cert SHA-256 should verify');
+    assert.strictEqual(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+});
 
 /**
  * Test PKIX-EE (usage=1) SPKI verification with raw peer cert
  */
-module.exports.verifyCertPkixEESPKI = test => {
+test('verifyCertPkixEESPKI', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
@@ -1115,15 +1071,14 @@ module.exports.verifyCertPkixEESPKI = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, true, 'PKIX-EE SPKI SHA-256 should verify');
-    test.equal(result.usage, 'PKIX-EE', 'Should report PKIX-EE usage');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'PKIX-EE SPKI SHA-256 should verify');
+    assert.strictEqual(result.usage, 'PKIX-EE', 'Should report PKIX-EE usage');
+});
 
 /**
  * Test createDaneVerifier end-to-end with correct TLSA (should pass)
  */
-module.exports.createDaneVerifierE2ECorrectTlsa = test => {
+test('createDaneVerifierE2ECorrectTlsa', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
@@ -1144,18 +1099,17 @@ module.exports.createDaneVerifierE2ECorrectTlsa = test => {
     });
 
     const result = verifier('mail.example.com', rawPeerCert);
-    test.equal(result, undefined, 'Should return undefined (success) for matching TLSA');
+    assert.strictEqual(result, undefined, 'Should return undefined (success) for matching TLSA');
 
     const successLog = logMessages.find(l => l.msg === 'DANE verification succeeded');
-    test.ok(successLog, 'Should log DANE verification succeeded');
-    test.equal(successLog.usage, 'DANE-EE', 'Log should report DANE-EE');
-    test.done();
-};
+    assert.ok(successLog, 'Should log DANE verification succeeded');
+    assert.strictEqual(successLog.usage, 'DANE-EE', 'Log should report DANE-EE');
+});
 
 /**
  * Test createDaneVerifier end-to-end with wrong TLSA (should fail)
  */
-module.exports.createDaneVerifierE2EWrongTlsa = test => {
+test('createDaneVerifierE2EWrongTlsa', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
@@ -1175,14 +1129,13 @@ module.exports.createDaneVerifierE2EWrongTlsa = test => {
     });
 
     const result = verifier('mail.example.com', rawPeerCert);
-    test.ok(result instanceof Error, 'Should return an Error for non-matching TLSA');
-    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Error code should be DANE_VERIFICATION_FAILED');
-    test.ok(result.message.includes('mail.example.com'), 'Error should include hostname');
+    assert.ok(result instanceof Error, 'Should return an Error for non-matching TLSA');
+    assert.strictEqual(result.code, 'DANE_VERIFICATION_FAILED', 'Error code should be DANE_VERIFICATION_FAILED');
+    assert.ok(result.message.includes('mail.example.com'), 'Error should include hostname');
 
     const failLog = logMessages.find(l => l.msg === 'DANE verification failed');
-    test.ok(failLog, 'Should log DANE verification failed');
-    test.done();
-};
+    assert.ok(failLog, 'Should log DANE verification failed');
+});
 
 /**
  * Test createDaneVerifier ignores verify:false and still fails closed
@@ -1190,7 +1143,7 @@ module.exports.createDaneVerifierE2EWrongTlsa = test => {
  * RFC 7672 Section 2.2 makes verification failures fatal whenever usable
  * TLSA records are present, so there is no log-only mode.
  */
-module.exports.createDaneVerifierIgnoresVerifyFalse = test => {
+test('createDaneVerifierIgnoresVerifyFalse', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
@@ -1210,18 +1163,17 @@ module.exports.createDaneVerifierIgnoresVerifyFalse = test => {
     });
 
     const result = verifier('mail.example.com', rawPeerCert);
-    test.ok(result instanceof Error, 'Should still return an error when verify is false');
-    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+    assert.ok(result instanceof Error, 'Should still return an error when verify is false');
+    assert.strictEqual(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
 
     const failLog = logMessages.find(l => l.msg === 'DANE verification failed');
-    test.ok(failLog, 'Should still log DANE verification failed');
-    test.done();
-};
+    assert.ok(failLog, 'Should still log DANE verification failed');
+});
 
 /**
  * Test createDaneVerifier with X509Certificate-style cert
  */
-module.exports.createDaneVerifierE2EX509Certificate = test => {
+test('createDaneVerifierE2EX509Certificate', async () => {
     const { certDer, spkiDer, publicKey } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
 
@@ -1242,9 +1194,8 @@ module.exports.createDaneVerifierE2EX509Certificate = test => {
 
     const verifier = dane.createDaneVerifier(tlsaRecords, { verify: true, logger: () => {} });
     const result = verifier('mail.example.com', x509Cert);
-    test.equal(result, undefined, 'Should return undefined (success) for X509Certificate with matching TLSA');
-    test.done();
-};
+    assert.strictEqual(result, undefined, 'Should return undefined (success) for X509Certificate with matching TLSA');
+});
 
 //
 // A CA and an end-entity certificate that CA actually issued, used for the
@@ -1298,44 +1249,40 @@ const TA_TLSA_RECORDS = [
  * Test that createDaneVerifier forwards its third argument as the issuer chain,
  * which is what makes DANE-TA (usage 2) verification possible
  */
-module.exports.createDaneVerifierForwardsChainForDaneTa = test => {
+test('createDaneVerifierForwardsChainForDaneTa', async () => {
     const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
 
     const withoutChain = verifier('mail.example.com', TA_LEAF);
-    test.ok(withoutChain instanceof Error, 'DANE-TA should fail when no chain is supplied');
-    test.equal(withoutChain.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+    assert.ok(withoutChain instanceof Error, 'DANE-TA should fail when no chain is supplied');
+    assert.strictEqual(withoutChain.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
 
     const withChain = verifier('mail.example.com', TA_LEAF, [TA_CA]);
-    test.equal(withChain, undefined, 'DANE-TA should succeed when the issuing trust anchor is supplied in the chain');
-
-    test.done();
-};
+    assert.strictEqual(withChain, undefined, 'DANE-TA should succeed when the issuing trust anchor is supplied in the chain');
+});
 
 /**
  * Test that DANE-TA works with the raw peer certificate shape returned by
  * tls.getPeerCertificate(), not just X509Certificate instances
  */
-module.exports.createDaneVerifierChainAcceptsRawPeerCerts = test => {
+test('createDaneVerifierChainAcceptsRawPeerCerts', async () => {
     const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
     const result = verifier('mail.example.com', { raw: TA_LEAF_DER }, [{ raw: TA_CA_DER }]);
 
-    test.equal(result, undefined, 'DANE-TA should succeed for raw peer certificate objects');
-    test.done();
-};
+    assert.strictEqual(result, undefined, 'DANE-TA should succeed for raw peer certificate objects');
+});
 
 /**
  * Test that a DANE-TA record still fails when the chain contains no matching cert
  */
-module.exports.createDaneVerifierChainWithoutMatchFails = test => {
+test('createDaneVerifierChainWithoutMatchFails', async () => {
     const { certDer } = generateTestCert();
 
     const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
     const result = verifier('mail.example.com', TA_LEAF, [{ raw: certDer }]);
 
-    test.ok(result instanceof Error, 'Should fail when no chain certificate matches the TLSA record');
-    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
-    test.done();
-};
+    assert.ok(result instanceof Error, 'Should fail when no chain certificate matches the TLSA record');
+    assert.strictEqual(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+});
 
 /**
  * Test that a DANE-TA match requires the pinned trust anchor to have actually
@@ -1347,31 +1294,29 @@ module.exports.createDaneVerifierChainWithoutMatchFails = test => {
  * pinned CA onto the chain to have it accepted, which defeats the point of
  * DANE entirely.
  */
-module.exports.createDaneVerifierRejectsUnrelatedLeafWithPinnedCaInChain = test => {
+test('createDaneVerifierRejectsUnrelatedLeafWithPinnedCaInChain', async () => {
     // A self-signed certificate NOT issued by the pinned CA, standing in for
     // the certificate an interception proxy would present
     const { certDer } = generateTestCert();
     const impostorLeaf = new nodeCrypto.X509Certificate(certDer);
 
-    test.equal(impostorLeaf.checkIssued(TA_CA), false, 'Impostor leaf must not actually be issued by the pinned CA');
+    assert.strictEqual(impostorLeaf.checkIssued(TA_CA), false, 'Impostor leaf must not actually be issued by the pinned CA');
 
     const verifier = dane.createDaneVerifier(TA_TLSA_RECORDS, { logger: () => {} });
     const result = verifier('mail.example.com', impostorLeaf, [TA_CA]);
 
-    test.ok(result instanceof Error, 'Must reject a leaf the pinned trust anchor did not issue');
-    test.equal(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
+    assert.ok(result instanceof Error, 'Must reject a leaf the pinned trust anchor did not issue');
+    assert.strictEqual(result.code, 'DANE_VERIFICATION_FAILED', 'Should report a verification failure');
 
     // The pinned CA is not on the verified path (which is the leaf alone, since
     // nothing in the chain issued it), so it is never considered a match
-    test.ok(result.message.includes('did not match'), 'Error should report that no TLSA record matched');
-
-    test.done();
-};
+    assert.ok(result.message.includes('did not match'), 'Error should report that no TLSA record matched');
+});
 
 /**
  * Test that multiple TLSA records are tried and first match wins
  */
-module.exports.verifyCertMultipleTlsaRecordsFirstMatchWins = test => {
+test('verifyCertMultipleTlsaRecordsFirstMatchWins', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
@@ -1392,28 +1337,26 @@ module.exports.verifyCertMultipleTlsaRecordsFirstMatchWins = test => {
     ];
 
     const result = dane.verifyCertAgainstTlsa(rawPeerCert, tlsaRecords);
-    test.equal(result.valid, true, 'Should match the second TLSA record');
-    test.ok(result.matchedRecord.cert.equals(spkiHash), 'Matched record should be the correct one');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'Should match the second TLSA record');
+    assert.ok(result.matchedRecord.cert.equals(spkiHash), 'Matched record should be the correct one');
+});
 
 /**
  * Test that cert.pubkey (raw key) is NOT the same as SPKI DER,
  * proving the bug that existed when extractSPKI returned cert.pubkey directly.
  */
-module.exports.extractSPKIPubkeyIsNotSPKI = test => {
+test('extractSPKIPubkeyIsNotSPKI', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const rawPeerCert = makeRawPeerCert(certDer, spkiDer);
 
     // cert.pubkey is the raw EC point (65 bytes), NOT the SPKI (91 bytes)
-    test.notEqual(rawPeerCert.pubkey.length, spkiDer.length, 'Raw pubkey length should differ from SPKI length');
-    test.ok(!rawPeerCert.pubkey.equals(spkiDer), 'Raw pubkey should NOT equal SPKI DER');
+    assert.notStrictEqual(rawPeerCert.pubkey.length, spkiDer.length, 'Raw pubkey length should differ from SPKI length');
+    assert.ok(!rawPeerCert.pubkey.equals(spkiDer), 'Raw pubkey should NOT equal SPKI DER');
 
     // But extractSPKI should return the correct SPKI
     const result = dane.extractSPKI(rawPeerCert);
-    test.ok(spkiDer.equals(result), 'extractSPKI should return correct SPKI, not raw pubkey');
-    test.done();
-};
+    assert.ok(spkiDer.equals(result), 'extractSPKI should return correct SPKI, not raw pubkey');
+});
 
 /**
  * Test toBuffer handles JSON-deserialized Buffer objects from Redis/cache.
@@ -1423,21 +1366,20 @@ module.exports.extractSPKIPubkeyIsNotSPKI = test => {
  *   {"type":"Buffer","data":[94,129,...]}
  * instead of an actual Buffer instance. toBuffer must handle this pattern.
  */
-module.exports.toBufferJsonDeserializedBuffer = test => {
+test('toBufferJsonDeserializedBuffer', async () => {
     const original = Buffer.from('5e81da1af16df20b', 'hex');
     const deserialized = JSON.parse(JSON.stringify(original));
 
     // Confirm the deserialized object is NOT a Buffer
-    test.ok(!Buffer.isBuffer(deserialized), 'JSON-deserialized Buffer should not be a Buffer');
-    test.equal(deserialized.type, 'Buffer', 'Should have type "Buffer"');
-    test.ok(Array.isArray(deserialized.data), 'Should have data array');
+    assert.ok(!Buffer.isBuffer(deserialized), 'JSON-deserialized Buffer should not be a Buffer');
+    assert.strictEqual(deserialized.type, 'Buffer', 'Should have type "Buffer"');
+    assert.ok(Array.isArray(deserialized.data), 'Should have data array');
 
     // toBuffer should recover the original Buffer
     const result = dane.toBuffer(deserialized);
-    test.ok(Buffer.isBuffer(result), 'toBuffer should return a Buffer');
-    test.ok(original.equals(result), 'Recovered Buffer should equal original');
-    test.done();
-};
+    assert.ok(Buffer.isBuffer(result), 'toBuffer should return a Buffer');
+    assert.ok(original.equals(result), 'Recovered Buffer should equal original');
+});
 
 /**
  * Test that DANE verification works end-to-end when TLSA records have been
@@ -1448,7 +1390,7 @@ module.exports.toBufferJsonDeserializedBuffer = test => {
  * Redis, and when retrieved the cert field is a plain object instead of
  * a Buffer. verifyCertAgainstTlsa must handle this transparently.
  */
-module.exports.verifyCertDaneEEWithJsonDeserializedTlsa = test => {
+test('verifyCertDaneEEWithJsonDeserializedTlsa', async () => {
     const { certDer, spkiDer } = generateTestCert();
     const x509 = new nodeCrypto.X509Certificate(certDer);
     const spkiHash = nodeCrypto.createHash('sha256').update(spkiDer).digest();
@@ -1467,22 +1409,21 @@ module.exports.verifyCertDaneEEWithJsonDeserializedTlsa = test => {
     const cachedRecords = JSON.parse(JSON.stringify(freshRecords));
 
     // Confirm the cert field is no longer a Buffer
-    test.ok(!Buffer.isBuffer(cachedRecords[0].cert), 'Cached cert should not be a Buffer');
-    test.equal(cachedRecords[0].cert.type, 'Buffer', 'Cached cert should have type "Buffer"');
+    assert.ok(!Buffer.isBuffer(cachedRecords[0].cert), 'Cached cert should not be a Buffer');
+    assert.strictEqual(cachedRecords[0].cert.type, 'Buffer', 'Cached cert should have type "Buffer"');
 
     // Verification should still succeed with cached (deserialized) records
     const result = dane.verifyCertAgainstTlsa(x509, cachedRecords);
-    test.equal(result.valid, true, 'DANE verification should succeed with cached TLSA records');
-    test.equal(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
-    test.done();
-};
+    assert.strictEqual(result.valid, true, 'DANE verification should succeed with cached TLSA records');
+    assert.strictEqual(result.usage, 'DANE-EE', 'Should report DANE-EE usage');
+});
 
 /**
  * Test that DANE verification FAILS with cached records when toBuffer
  * does NOT handle the deserialized pattern (regression guard).
  * This test uses a wrong hash to confirm the comparison still works correctly.
  */
-module.exports.verifyCertDaneEEWithJsonDeserializedTlsaWrongHash = test => {
+test('verifyCertDaneEEWithJsonDeserializedTlsaWrongHash', async () => {
     const { certDer } = generateTestCert();
     const x509 = new nodeCrypto.X509Certificate(certDer);
 
@@ -1500,9 +1441,8 @@ module.exports.verifyCertDaneEEWithJsonDeserializedTlsaWrongHash = test => {
     );
 
     const result = dane.verifyCertAgainstTlsa(x509, cachedRecords);
-    test.equal(result.valid, false, 'Should reject wrong hash even from cached records');
-    test.done();
-};
+    assert.strictEqual(result.valid, false, 'Should reject wrong hash even from cached records');
+});
 
 /**
  * Test: malformed TLSA record input must not throw out of the verifier
@@ -1511,14 +1451,13 @@ module.exports.verifyCertDaneEEWithJsonDeserializedTlsaWrongHash = test => {
  * would crash the connection handling, so malformed input has to come back as
  * a DANE_VERIFICATION_ERROR return value instead.
  */
-module.exports.verifierHandlesMalformedTlsaRecordsWithoutThrowing = test => {
+test('verifierHandlesMalformedTlsaRecordsWithoutThrowing', async () => {
     // Non-iterable array-like: passes the length check, then throws inside
     // verifyCertAgainstTlsa when iterated
     const verifier = dane.createDaneVerifier({ length: 1 }, {});
 
     const result = verifier('mail.example.com', { raw: Buffer.from('not a real cert') });
-    test.ok(result instanceof Error, 'Malformed records should produce an error return value, not a throw');
-    test.equal(result.code, 'DANE_VERIFICATION_ERROR');
-    test.equal(result.category, 'dane');
-    test.done();
-};
+    assert.ok(result instanceof Error, 'Malformed records should produce an error return value, not a throw');
+    assert.strictEqual(result.code, 'DANE_VERIFICATION_ERROR');
+    assert.strictEqual(result.category, 'dane');
+});

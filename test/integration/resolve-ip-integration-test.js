@@ -1,18 +1,20 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const net = require('net');
 const resolveIp = require('../../lib/resolve-ip');
 
-module.exports.realDnsLookup = async test => {
+test('realDnsLookup', async () => {
     try {
         const delivery = await resolveIp({
             domain: 'kreata.ee',
             mx: [{ exchange: 'aspmx.l.google.com', priority: 10 }]
         });
-        test.ok(net.isIPv4(delivery.mx[0].A[0]));
-        test.ok(net.isIPv6(delivery.mx[0].AAAA[0]));
+        assert.ok(net.isIPv4(delivery.mx[0].A[0]));
+        assert.ok(net.isIPv6(delivery.mx[0].AAAA[0]));
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});

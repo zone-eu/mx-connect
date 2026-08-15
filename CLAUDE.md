@@ -17,17 +17,23 @@ mx-connect is a Node.js library that establishes TCP connections to MX (Mail Exc
 ## Build and Test Commands
 
 ```bash
-# Run tests (includes linting + nodeunit tests)
+# Run linting and both test suites
 npm test
 
 # Run linting
 npm run lint
 
 # Run only unit tests
-npx grunt nodeunit
+npm run test:unit
+
+# Run only integration tests (needs DNS and outbound HTTPS)
+npm run test:integration
 
 # Run a single test file
-npx nodeunit test/mx-connect-test.js
+node --test test/mx-connect-test.js
+
+# Run one test by name
+node --test --test-name-pattern='blockedAddressesRecordedOnDelivery' test/resolve-ip-test.js
 
 # Format code
 npm run format
@@ -75,4 +81,8 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 
 ## Testing
 
-Tests use nodeunit framework. Test files in `test/` follow the pattern `*-test.js` and test each corresponding module in `lib/`. Integration tests are in `test/integration/`.
+Tests use the Node.js built-in test runner (`node --test`) with `node:assert`, so there is no test framework dependency. Test files in `test/` follow the pattern `*-test.js` and test each corresponding module in `lib/`.
+
+`test/` is the blocking suite: it covers the socket layer too, against a listener started on a loopback high port, so it needs no network. `test/integration/` covers only what a unit test cannot, real DNS resolution and a real MTA-STS policy fetch, and is run in CI without blocking, because a failure there can equally mean a published record changed.
+
+Tests of the callback API use the runner's callback form, `test('name', (t, done) => ...)`, so an assertion inside a library callback is still attributed to the test.
