@@ -1,5 +1,8 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const net = require('net');
 const EventEmitter = require('events');
 const getConnection = require('../lib/get-connection');
@@ -27,22 +30,21 @@ function stubNetConnect(factory) {
     };
 }
 
-module.exports.noMxHosts = async test => {
+test('noMxHosts', async () => {
     try {
         await getConnection({
             domain: 'empty.example.com',
             decodedDomain: 'empty.example.com',
             mx: []
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('No Mail Exchange'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('No Mail Exchange'));
     }
-    test.done();
-};
+});
 
-module.exports.noValidAddresses = async test => {
+test('noValidAddresses', async () => {
     // MX entries exist but have no resolvable IP addresses
     try {
         await getConnection({
@@ -50,15 +52,14 @@ module.exports.noValidAddresses = async test => {
             decodedDomain: 'noips.example.com',
             mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: [] }]
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('No Mail Exchange'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('No Mail Exchange'));
     }
-    test.done();
-};
+});
 
-module.exports.ipv6OnlyMx = async test => {
+test('ipv6OnlyMx', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -68,14 +69,13 @@ module.exports.ipv6OnlyMx = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: ['2001:db8::1'] }],
             connectHook: hook
         });
-        test.equal(connections[0].host, '2001:db8::1');
+        assert.strictEqual(connections[0].host, '2001:db8::1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipv4Default = async test => {
+test('ipv4Default', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -85,14 +85,13 @@ module.exports.ipv4Default = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: ['2001:db8::1'] }],
             connectHook: hook
         });
-        test.equal(connections[0].host, '192.0.2.1');
+        assert.strictEqual(connections[0].host, '192.0.2.1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.preferIPv6 = async test => {
+test('preferIPv6', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -103,14 +102,13 @@ module.exports.preferIPv6 = async test => {
             dnsOptions: { preferIPv6: true },
             connectHook: hook
         });
-        test.equal(connections[0].host, '2001:db8::1');
+        assert.strictEqual(connections[0].host, '2001:db8::1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.hookWithSocket = async test => {
+test('hookWithSocket', async () => {
     const mockHook = createMockConnectHook({
         localAddress: '10.0.0.1',
         localPort: 12345,
@@ -124,16 +122,15 @@ module.exports.hookWithSocket = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
             connectHook: mockHook
         });
-        test.ok(connection.socket);
-        test.equal(connection.localAddress, '10.0.0.1');
-        test.equal(connection.localPort, 12345);
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.localAddress, '10.0.0.1');
+        assert.strictEqual(connection.localPort, 12345);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.priorityOrdering = async test => {
+test('priorityOrdering', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -147,15 +144,14 @@ module.exports.priorityOrdering = async test => {
             ],
             connectHook: hook
         });
-        test.equal(connections[0].host, '192.0.2.1');
-        test.equal(connection.host, '192.0.2.1');
+        assert.strictEqual(connections[0].host, '192.0.2.1');
+        assert.strictEqual(connection.host, '192.0.2.1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ignoreMxHosts = async test => {
+test('ignoreMxHosts', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -169,14 +165,13 @@ module.exports.ignoreMxHosts = async test => {
             ignoreMXHosts: ['192.0.2.1'],
             connectHook: hook
         });
-        test.equal(connections[0].host, '192.0.2.2');
+        assert.strictEqual(connections[0].host, '192.0.2.2');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.connectHookError = async test => {
+test('connectHookError', async () => {
     // connectHook errors reject the entire promise immediately
     const hookError = new Error('Hook rejected connection');
     hookError.code = 'HOOK_ERROR';
@@ -189,14 +184,13 @@ module.exports.connectHookError = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
             connectHook: hook
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.ok(err.message.includes('Hook rejected'));
+        assert.ok(err.message.includes('Hook rejected'));
     }
-    test.done();
-};
+});
 
-module.exports.connectHookErrorStopsRetry = async test => {
+test('connectHookErrorStopsRetry', async () => {
     // A hook error is fatal: remaining hosts must not be attempted
     const { hook, attempts } = createFailingConnectHook(new Error('Hook rejected connection'));
 
@@ -210,15 +204,14 @@ module.exports.connectHookErrorStopsRetry = async test => {
             ],
             connectHook: hook
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.ok(err.message.includes('Hook rejected'));
-        test.equal(attempts.length, 1, 'Fatal hook error must not retry the next host');
+        assert.ok(err.message.includes('Hook rejected'));
+        assert.strictEqual(attempts.length, 1, 'Fatal hook error must not retry the next host');
     }
-    test.done();
-};
+});
 
-module.exports.customPort = async test => {
+test('customPort', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -229,14 +222,13 @@ module.exports.customPort = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
             connectHook: hook
         });
-        test.equal(connections[0].port, 587);
+        assert.strictEqual(connections[0].port, 587);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.deduplicateHosts = async test => {
+test('deduplicateHosts', async () => {
     const { hook, connections } = createTrackingConnectHook();
 
     try {
@@ -249,14 +241,13 @@ module.exports.deduplicateHosts = async test => {
             ],
             connectHook: hook
         });
-        test.equal(connections.length, 1);
+        assert.strictEqual(connections.length, 1);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsEnforceRejects = async test => {
+test('mtaStsEnforceRejects', async () => {
     // Policy failure in enforce mode must reject without attempting a connection
     const { hook, connections } = createTrackingConnectHook();
     const logEntries = [];
@@ -277,19 +268,18 @@ module.exports.mtaStsEnforceRejects = async test => {
             mtaSts: { logger: entry => logEntries.push(entry) },
             connectHook: hook
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'policy');
-        test.equal(connections.length, 0, 'Must not connect to a host that fails an enforced policy');
-        test.ok(
+        assert.strictEqual(err.category, 'policy');
+        assert.strictEqual(connections.length, 0, 'Must not connect to a host that fails an enforced policy');
+        assert.ok(
             logEntries.some(entry => entry.success === false),
             'Policy failure should be logged'
         );
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsTestingModeConnects = async test => {
+test('mtaStsTestingModeConnects', async () => {
     // Policy failure in testing mode is logged but the connection proceeds
     const { hook, connections } = createTrackingConnectHook();
     const logEntries = [];
@@ -310,19 +300,18 @@ module.exports.mtaStsTestingModeConnects = async test => {
             mtaSts: { logger: entry => logEntries.push(entry) },
             connectHook: hook
         });
-        test.ok(connection.socket);
-        test.equal(connections.length, 1);
-        test.ok(
+        assert.ok(connection.socket);
+        assert.strictEqual(connections.length, 1);
+        assert.ok(
             logEntries.some(entry => entry.success === false),
             'Policy failure should still be logged in testing mode'
         );
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.daneLookupFailureRejects = async test => {
+test('daneLookupFailureRejects', async () => {
     // A failed TLSA/DNSSEC lookup must fail closed with a temporary error
     const { hook, connections } = createTrackingConnectHook();
     const logEntries = [];
@@ -344,20 +333,19 @@ module.exports.daneLookupFailureRejects = async test => {
             dane: { enabled: true, logger: entry => logEntries.push(entry) },
             connectHook: hook
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dane');
-        test.ok(err.temporary, 'DANE lookup failure must be temporary so delivery is retried');
-        test.equal(connections.length, 0, 'Must not connect when the DANE status is unknown');
-        test.ok(
+        assert.strictEqual(err.category, 'dane');
+        assert.ok(err.temporary, 'DANE lookup failure must be temporary so delivery is retried');
+        assert.strictEqual(connections.length, 0, 'Must not connect when the DANE status is unknown');
+        assert.ok(
             logEntries.some(entry => entry.success === false),
             'DANE rejection should be logged'
         );
     }
-    test.done();
-};
+});
 
-module.exports.daneVerifierSetup = async test => {
+test('daneVerifierSetup', async () => {
     // TLSA records present: connection result carries the DANE verifier and requires TLS
     const { hook } = createTrackingConnectHook();
 
@@ -377,17 +365,16 @@ module.exports.daneVerifierSetup = async test => {
             dane: { enabled: true },
             connectHook: hook
         });
-        test.ok(connection.daneEnabled);
-        test.ok(connection.requireTls);
-        test.equal(typeof connection.daneVerifier, 'function');
-        test.equal(connection.tlsaRecords.length, 1);
+        assert.ok(connection.daneEnabled);
+        assert.ok(connection.requireTls);
+        assert.strictEqual(typeof connection.daneVerifier, 'function');
+        assert.strictEqual(connection.tlsaRecords.length, 1);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.retryFallsBackToNextHost = async test => {
+test('retryFallsBackToNextHost', async () => {
     // First host refuses the TCP connection (nothing listens on [::1]:port),
     // so the next host in priority order must be attempted and succeed
     const server = await startServer();
@@ -405,21 +392,20 @@ module.exports.retryFallsBackToNextHost = async test => {
             ],
             connectError: err => connectErrors.push(err)
         });
-        test.equal(connection.host, '127.0.0.1');
-        test.ok(connection.socket);
-        test.equal(connectErrors.length, 1, 'The failed attempt should be reported via connectError');
-        test.equal(connectErrors[0].category, 'network');
-        test.ok(connectErrors[0].temporary, 'Socket errors must be temporary');
+        assert.strictEqual(connection.host, '127.0.0.1');
+        assert.ok(connection.socket);
+        assert.strictEqual(connectErrors.length, 1, 'The failed attempt should be reported via connectError');
+        assert.strictEqual(connectErrors[0].category, 'network');
+        assert.ok(connectErrors[0].temporary, 'Socket errors must be temporary');
         connection.socket.destroy();
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     await closeServer(server);
-    test.done();
-};
+});
 
-module.exports.connectTimeout = async test => {
+test('connectTimeout', async () => {
     // A socket that never connects must be timed out, destroyed, and reported
     // as a temporary network error
     const sockets = [];
@@ -438,20 +424,19 @@ module.exports.connectTimeout = async test => {
             maxConnectTime: 20,
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }]
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.ok(err.message.includes('timed out'), 'Error should mention the timeout');
-        test.equal(err.category, 'network');
-        test.ok(err.temporary, 'Timeouts must be temporary');
-        test.equal(sockets.length, 1);
-        test.ok(sockets[0].destroyCount > 0, 'Timed out socket must be destroyed');
+        assert.ok(err.message.includes('timed out'), 'Error should mention the timeout');
+        assert.strictEqual(err.category, 'network');
+        assert.ok(err.temporary, 'Timeouts must be temporary');
+        assert.strictEqual(sockets.length, 1);
+        assert.ok(sockets[0].destroyCount > 0, 'Timed out socket must be destroyed');
     } finally {
         restore();
     }
-    test.done();
-};
+});
 
-module.exports.lateConnectAfterTimeoutIsDestroyed = async test => {
+test('lateConnectAfterTimeoutIsDestroyed', async () => {
     // If the TCP connection completes after the timeout already settled the
     // promise, the late socket must be destroyed instead of leaking
     let socket;
@@ -471,20 +456,19 @@ module.exports.lateConnectAfterTimeoutIsDestroyed = async test => {
             maxConnectTime: 10,
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }]
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.ok(err.temporary);
+        assert.ok(err.temporary);
         const destroyedByTimeout = socket.destroyCount;
         // Simulate the connection completing after the timeout fired
         connectListener();
-        test.ok(socket.destroyCount > destroyedByTimeout, 'Late socket must be destroyed, not leaked');
+        assert.ok(socket.destroyCount > destroyedByTimeout, 'Late socket must be destroyed, not leaked');
     } finally {
         restore();
     }
-    test.done();
-};
+});
 
-module.exports.duplicateSocketErrorsAreHandled = async test => {
+test('duplicateSocketErrorsAreHandled', async () => {
     // A second error event after the first must not crash the process as an
     // unhandled 'error' event
     let socket;
@@ -505,22 +489,21 @@ module.exports.duplicateSocketErrorsAreHandled = async test => {
             decodedDomain: 'doubleerror.example.com',
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }]
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'network');
+        assert.strictEqual(err.category, 'network');
         // Emitting a second error would throw synchronously right here if the
         // socket had no listener left
         const second = new Error('late reset');
         second.code = 'ECONNRESET';
         socket.emit('error', second);
-        test.ok(true, 'Second socket error did not raise an uncaught exception');
+        assert.ok(true, 'Second socket error did not raise an uncaught exception');
     } finally {
         restore();
     }
-    test.done();
-};
+});
 
-module.exports.maxMxHostsCap = async test => {
+test('maxMxHostsCap', async () => {
     // Connection attempts must be capped at 20 hosts even when more are listed
     let attempts = 0;
     const restore = stubNetConnect(() => {
@@ -546,17 +529,16 @@ module.exports.maxMxHostsCap = async test => {
             decodedDomain: 'many.example.com',
             mx
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'network');
-        test.equal(attempts, 20, 'Connection attempts must stop at the 20 host cap');
+        assert.strictEqual(err.category, 'network');
+        assert.strictEqual(attempts, 20, 'Connection attempts must stop at the 20 host cap');
     } finally {
         restore();
     }
-    test.done();
-};
+});
 
-module.exports.allHostsIgnoredUsesMxLastError = async test => {
+test('allHostsIgnoredUsesMxLastError', async () => {
     // When ignoreMXHosts filters out every host, a provided mxLastError is
     // used as the rejection so the caller sees the original failure
     const lastError = new Error('previous delivery attempt failed');
@@ -571,14 +553,13 @@ module.exports.allHostsIgnoredUsesMxLastError = async test => {
             ignoreMXHosts: ['192.0.2.1'],
             mxLastError: lastError
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err, lastError, 'Rejection should be the provided mxLastError');
+        assert.strictEqual(err, lastError, 'Rejection should be the provided mxLastError');
     }
-    test.done();
-};
+});
 
-module.exports.allHostsIgnoredDefaultError = async test => {
+test('allHostsIgnoredDefaultError', async () => {
     // Without mxLastError, filtering out every host produces a temporary
     // network error
     try {
@@ -588,16 +569,15 @@ module.exports.allHostsIgnoredDefaultError = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
             ignoreMXHosts: ['192.0.2.1']
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'network');
-        test.ok(err.temporary, 'Filtered-host failure must be temporary');
-        test.ok(err.message.includes('ignored2.example.com'));
+        assert.strictEqual(err.category, 'network');
+        assert.ok(err.temporary, 'Filtered-host failure must be temporary');
+        assert.ok(err.message.includes('ignored2.example.com'));
     }
-    test.done();
-};
+});
 
-module.exports.localAddressSelectionForIPv6 = async test => {
+test('localAddressSelectionForIPv6', async () => {
     // With an IPv4 localAddress configured but an IPv6 target, the IPv6 local
     // address and hostname must be selected for the connection
     const captured = [];
@@ -617,16 +597,15 @@ module.exports.localAddressSelectionForIPv6 = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: ['2001:db8::1'] }],
             connectHook: hook
         });
-        test.equal(captured[0].host, '2001:db8::1');
-        test.equal(captured[0].localAddress, '2001:db8::100');
-        test.equal(captured[0].localHostname, 'v6.local.example.com');
+        assert.strictEqual(captured[0].host, '2001:db8::1');
+        assert.strictEqual(captured[0].localAddress, '2001:db8::100');
+        assert.strictEqual(captured[0].localHostname, 'v6.local.example.com');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.allHostsFailPreservesFirstError = async test => {
+test('allHostsFailPreservesFirstError', async () => {
     // When every host fails, the rejection must carry the first error encountered
     const port = await getFreePort();
 
@@ -640,16 +619,15 @@ module.exports.allHostsFailPreservesFirstError = async test => {
                 { exchange: 'mx2.example.com', priority: 20, A: [], AAAA: ['::1'] }
             ]
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'network');
-        test.ok(err.temporary);
-        test.ok(err.message.includes('mx1.example.com'), 'Rejection should preserve the first error');
+        assert.strictEqual(err.category, 'network');
+        assert.ok(err.temporary);
+        assert.ok(err.message.includes('mx1.example.com'), 'Rejection should preserve the first error');
     }
-    test.done();
-};
+});
 
-module.exports.localAddressKeptForMatchingFamily = async test => {
+test('localAddressKeptForMatchingFamily', async () => {
     // When the configured localAddress already matches the target IP family it
     // must be used as-is, without switching to the per-family settings
     const captured = [];
@@ -668,14 +646,13 @@ module.exports.localAddressKeptForMatchingFamily = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: ['192.0.2.1'], AAAA: [] }],
             connectHook: hook
         });
-        test.equal(captured[0].localAddress, '192.0.2.100', 'Matching-family localAddress must be kept');
+        assert.strictEqual(captured[0].localAddress, '192.0.2.100', 'Matching-family localAddress must be kept');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.connectedSocketCarriesData = async test => {
+test('connectedSocketCarriesData', async () => {
     // The other socket tests assert that a connection was established; this one asserts the
     // socket is actually usable, by reading the greeting the listener sends. It runs against
     // a local listener rather than a real MX on port 25, which hosted CI runners block.
@@ -689,18 +666,17 @@ module.exports.connectedSocketCarriesData = async test => {
             port,
             mx: [{ exchange: 'mx-connect.test', priority: 10, A: ['127.0.0.1'], AAAA: [] }]
         });
-        test.ok(delivery.socket);
-        test.equal(delivery.host, '127.0.0.1');
-        test.equal(delivery.port, port);
-        test.equal(delivery.hostname, 'mx-connect.test');
+        assert.ok(delivery.socket);
+        assert.strictEqual(delivery.host, '127.0.0.1');
+        assert.strictEqual(delivery.port, port);
+        assert.strictEqual(delivery.hostname, 'mx-connect.test');
 
         const greeting = await new Promise(resolve => delivery.socket.once('data', chunk => resolve(chunk.toString())));
-        test.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
+        assert.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
         delivery.socket.destroy();
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     await closeServer(server);
-    test.done();
-};
+});

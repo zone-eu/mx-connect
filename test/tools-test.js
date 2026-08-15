@@ -2,9 +2,12 @@
 
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const tools = require('../lib/tools');
 
-module.exports.getDnsResolverWithCustomResolver = async test => {
+test('getDnsResolverWithCustomResolver', async () => {
     const calls = [];
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
         const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
@@ -18,24 +21,23 @@ module.exports.getDnsResolverWithCustomResolver = async test => {
     try {
         // Test with type argument
         let result = await resolver('example.com', 'MX');
-        test.deepEqual(result, ['192.0.2.1']);
-        test.equal(calls.length, 1);
-        test.equal(calls[0].domain, 'example.com');
-        test.equal(calls[0].type, 'MX');
+        assert.deepStrictEqual(result, ['192.0.2.1']);
+        assert.strictEqual(calls.length, 1);
+        assert.strictEqual(calls[0].domain, 'example.com');
+        assert.strictEqual(calls[0].type, 'MX');
 
         // Test without type argument (should resolve A records)
         result = await resolver('example2.com');
-        test.deepEqual(result, ['192.0.2.1']);
-        test.equal(calls.length, 2);
-        test.equal(calls[1].domain, 'example2.com');
-        test.equal(calls[1].type, 'A');
+        assert.deepStrictEqual(result, ['192.0.2.1']);
+        assert.strictEqual(calls.length, 2);
+        assert.strictEqual(calls[1].domain, 'example2.com');
+        assert.strictEqual(calls[1].type, 'A');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.getDnsResolverWithCustomResolverError = async test => {
+test('getDnsResolverWithCustomResolverError', async () => {
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
         const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
         const err = new Error('SERVFAIL');
@@ -47,33 +49,30 @@ module.exports.getDnsResolverWithCustomResolverError = async test => {
 
     try {
         await resolver('fail.example.com', 'MX');
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'SERVFAIL');
+        assert.strictEqual(err.code, 'SERVFAIL');
     }
-    test.done();
-};
+});
 
-module.exports.getDnsResolverWithoutCustomResolver = test => {
+test('getDnsResolverWithoutCustomResolver', async () => {
     // When no custom resolver provided, should use native dns.promises
     const resolver = tools.getDnsResolver(null);
 
     // Just verify it returns a function
-    test.equal(typeof resolver, 'function');
-    test.done();
-};
+    assert.strictEqual(typeof resolver, 'function');
+});
 
-module.exports.isNotFoundError = test => {
-    test.equal(tools.isNotFoundError({ code: 'ENODATA' }), true);
-    test.equal(tools.isNotFoundError({ code: 'ENOTFOUND' }), true);
-    test.equal(tools.isNotFoundError({ code: 'SERVFAIL' }), false);
-    test.ok(!tools.isNotFoundError(null), 'null should be falsy');
-    test.ok(!tools.isNotFoundError(undefined), 'undefined should be falsy');
-    test.done();
-};
+test('isNotFoundError', async () => {
+    assert.strictEqual(tools.isNotFoundError({ code: 'ENODATA' }), true);
+    assert.strictEqual(tools.isNotFoundError({ code: 'ENOTFOUND' }), true);
+    assert.strictEqual(tools.isNotFoundError({ code: 'SERVFAIL' }), false);
+    assert.ok(!tools.isNotFoundError(null), 'null should be falsy');
+    assert.ok(!tools.isNotFoundError(undefined), 'undefined should be falsy');
+});
 
-module.exports.isInvalid = test => {
-    test.equal(
+test('isInvalid', async () => {
+    assert.strictEqual(
         tools.isInvalid(
             {
                 dnsOptions: {}
@@ -83,7 +82,7 @@ module.exports.isInvalid = test => {
         false
     );
 
-    test.equal(
+    assert.strictEqual(
         tools.isInvalid(
             {
                 dnsOptions: {
@@ -95,7 +94,7 @@ module.exports.isInvalid = test => {
         false
     );
 
-    test.ok(
+    assert.ok(
         // IP address in disallowed loopback range
         tools.isInvalid(
             {
@@ -107,7 +106,7 @@ module.exports.isInvalid = test => {
         )
     );
 
-    test.ok(
+    assert.ok(
         // IP address in disallowed unspecified range
         tools.isInvalid(
             {
@@ -117,7 +116,7 @@ module.exports.isInvalid = test => {
         )
     );
 
-    test.ok(
+    assert.ok(
         // IP address in disallowed broadcast range
         tools.isInvalid(
             {
@@ -128,69 +127,67 @@ module.exports.isInvalid = test => {
     );
 
     // multicast is never a valid unicast destination - blocked regardless of options
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '224.0.0.1'));
-    test.ok(tools.isInvalid({ dnsOptions: {} }, 'ff02::1'));
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '224.0.0.1'));
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, 'ff02::1'));
 
     // reserved is blocked only when blockReservedNetworks=true: future-use, the RFC 5737 /
     // RFC 3849 documentation ranges and IPv4 benchmarking. These assertions are also what
     // pins the ipaddr.js range names the policy is written in, so a dependency bump that
     // renames or reorders a range fails here rather than quietly allowing the address.
     for (const ip of ['240.0.0.1', '192.0.2.1', '198.18.0.1', '2001:db8::1']) {
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
-        test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, ip), `${ip} should be blocked with blockReservedNetworks`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        assert.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, ip), `${ip} should be blocked with blockReservedNetworks`);
     }
 
     // link-local, CGNAT, IPv6 unique-local and deprecated site-local are local-scope:
     // only blocked when blockLocalAddresses=true
     for (const ip of ['169.254.1.1', '100.64.0.1', 'fe80::1', 'fc00::1', 'fec0::1']) {
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
-        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be blocked with blockLocalAddresses`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be blocked with blockLocalAddresses`);
     }
 
     // never a mail host, whatever the options: RFC 6666 discard and RFC 9602 segment routing
     for (const ip of ['100::1', '5f00::1']) {
-        test.ok(tools.isInvalid({ dnsOptions: {} }, ip), `${ip} should always be blocked`);
+        assert.ok(tools.isInvalid({ dnsOptions: {} }, ip), `${ip} should always be blocked`);
     }
 
     // IPv6 benchmarking and AMT follow blockReservedNetworks, like the IPv4 ranges do
     for (const ip of ['2001:2::1', '2001:3::1']) {
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
-        test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, ip), `${ip} should be blocked with blockReservedNetworks`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        assert.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, ip), `${ip} should be blocked with blockReservedNetworks`);
     }
 
     // IPv6 loopback is blocked with blockLocalAddresses, allowed without
-    test.equal(tools.isInvalid({ dnsOptions: {} }, '::1'), false);
-    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::1'));
+    assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, '::1'), false);
+    assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::1'));
 
     // public unicast addresses remain valid in both modes
-    test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '2606:4700:4700::1111'), false);
+    assert.strictEqual(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '2606:4700:4700::1111'), false);
 
     // IPv4-mapped IPv6 addresses connect to the embedded IPv4 host, so they must be judged as
     // that IPv4 address rather than slipping through on their own "ipv4Mapped" range
     for (const ip of ['::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:169.254.169.254', '::ffff:100.64.0.1']) {
-        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be blocked with blockLocalAddresses`);
+        assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be blocked with blockLocalAddresses`);
     }
 
     // mapped forms of the always-invalid ranges are blocked with no options set
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:0.0.0.0'));
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:255.255.255.255'));
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:224.0.0.1'));
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:0.0.0.0'));
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:255.255.255.255'));
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '::ffff:224.0.0.1'));
 
     // mapped documentation ranges follow blockReservedNetworks like their bare IPv4 form
-    test.equal(tools.isInvalid({ dnsOptions: {} }, '::ffff:192.0.2.1'), false);
-    test.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '::ffff:192.0.2.1'));
+    assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, '::ffff:192.0.2.1'), false);
+    assert.ok(tools.isInvalid({ dnsOptions: { blockReservedNetworks: true } }, '::ffff:192.0.2.1'));
 
     // a mapped public address is still deliverable - unwrapping must not over-block
-    test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::ffff:8.8.8.8'), false);
+    assert.strictEqual(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::ffff:8.8.8.8'), false);
 
     // alternate notations of the same mapped address are handled identically
-    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::FFFF:127.0.0.1'));
-    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0:0:0:0:0:ffff:7f00:1'));
+    assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '::FFFF:127.0.0.1'));
+    assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0:0:0:0:0:ffff:7f00:1'));
+});
 
-    test.done();
-};
-
-module.exports.isInvalidEmbeddedIPv4 = test => {
+test('isInvalidEmbeddedIPv4', async () => {
     // IPv6 transition mechanisms carry an IPv4 address that the connection actually
     // reaches (via NAT64/CLAT, 6to4 relay or Teredo tunnel), so each is judged as the
     // IPv4 address it carries rather than on its own IPv6 range. Every address below
@@ -207,10 +204,10 @@ module.exports.isInvalidEmbeddedIPv4 = test => {
         '::127.0.0.1'
     ];
     for (const ip of loopbackCarriers) {
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed by default`);
         const result = tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip);
-        test.ok(result, `${ip} carries 127.0.0.1 and should be blocked with blockLocalAddresses`);
-        test.ok(result.includes('127.0.0.1'), `${ip} should name the carried IPv4 address in the error`);
+        assert.ok(result, `${ip} carries 127.0.0.1 and should be blocked with blockLocalAddresses`);
+        assert.ok(result.includes('127.0.0.1'), `${ip} should name the carried IPv4 address in the error`);
     }
 
     // The same mechanisms carrying a public IPv4 address stay deliverable. This matters
@@ -219,27 +216,29 @@ module.exports.isInvalidEmbeddedIPv4 = test => {
     // wholesale would break delivery to those domains entirely.
     const publicCarriers = ['64:ff9b::8.8.8.8', '::ffff:0:8.8.8.8', '2002:808:808::', '2001:0:4136:e378:8000:63bf:f7f7:f7f7', '::8.8.8.8'];
     for (const ip of publicCarriers) {
-        test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), false, `${ip} carries a public address and should be deliverable`);
+        assert.strictEqual(
+            tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip),
+            false,
+            `${ip} carries a public address and should be deliverable`
+        );
     }
 
     // Addresses that can never be a mail host are rejected whatever the options, and a
     // transition envelope must not be a way around that
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '64:ff9b::ffff:ffff'), 'NAT64 carrying the broadcast address should always be blocked');
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '64:ff9b::'), 'NAT64 carrying the unspecified address should always be blocked');
-    test.ok(tools.isInvalid({ dnsOptions: {} }, '2002:e000:1::'), '6to4 carrying a multicast address should always be blocked');
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '64:ff9b::ffff:ffff'), 'NAT64 carrying the broadcast address should always be blocked');
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '64:ff9b::'), 'NAT64 carrying the unspecified address should always be blocked');
+    assert.ok(tools.isInvalid({ dnsOptions: {} }, '2002:e000:1::'), '6to4 carrying a multicast address should always be blocked');
 
     // RFC 8215 reserves 64:ff9b:1::/48 for locally chosen NAT64 prefixes. The embedded
     // address offset depends on that local prefix length, so it cannot be read from the
     // address and the whole prefix stays a blanket block under blockLocalAddresses.
-    test.equal(tools.isInvalid({ dnsOptions: {} }, '64:ff9b:1::7f00:1'), false);
+    assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, '64:ff9b:1::7f00:1'), false);
     const localUse = tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '64:ff9b:1::7f00:1');
-    test.ok(localUse);
-    test.ok(localUse.includes('64:ff9b:1::/48'), 'the local-use NAT64 rejection should name the prefix');
+    assert.ok(localUse);
+    assert.ok(localUse.includes('64:ff9b:1::/48'), 'the local-use NAT64 rejection should name the prefix');
+});
 
-    test.done();
-};
-
-module.exports.isInvalidRejectsNonCanonicalNotations = test => {
+test('isInvalidRejectsNonCanonicalNotations', async () => {
     // Only a canonical literal can be validated safely. ipaddr.js reads a leading zero as
     // octal while the platform resolver reads it as decimal, so 0127.0.0.1 looks like the
     // public 87.0.0.1 to the check and resolves to 127.0.0.1 for the connection. Anything
@@ -264,21 +263,19 @@ module.exports.isInvalidRejectsNonCanonicalNotations = test => {
 
     for (const ip of bypassAttempts) {
         // Refused whatever the options, since the address cannot be judged at all
-        test.ok(tools.isInvalid({ dnsOptions: {} }, ip), `${ip} should be refused by default`);
-        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused with blockLocalAddresses`);
+        assert.ok(tools.isInvalid({ dnsOptions: {} }, ip), `${ip} should be refused by default`);
+        assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused with blockLocalAddresses`);
     }
 
     // Canonical spellings that net.isIP does recognise must still be accepted, including
     // zone identifiers and the alternate IPv6 notations
     for (const ip of ['8.8.8.8', '2606:4700:4700::1111', '::ffff:8.8.8.8', '0:0:0:0:0:ffff:808:808']) {
-        test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), false, `${ip} should still be accepted`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), false, `${ip} should still be accepted`);
     }
-    test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, 'fe80::1%eth0'), 'a zone identifier must be parsed, not waved through');
+    assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, 'fe80::1%eth0'), 'a zone identifier must be parsed, not waved through');
+});
 
-    test.done();
-};
-
-module.exports.getDnsResolverExplicitATypeUsesLegacyForm = async test => {
+test('getDnsResolverExplicitATypeUsesLegacyForm', async () => {
     // An explicit 'A' type must be equivalent to an omitted type and use the
     // two-argument custom resolver form
     const arities = [];
@@ -293,53 +290,48 @@ module.exports.getDnsResolverExplicitATypeUsesLegacyForm = async test => {
     try {
         const aRecords = await resolver('example.com', 'A');
         const mxRecords = await resolver('example.com', 'MX');
-        test.deepEqual(aRecords, ['192.0.2.1']);
-        test.deepEqual(mxRecords, ['192.0.2.1']);
-        test.deepEqual(arities, [2, 3], "Explicit 'A' must use the two-argument resolver form");
+        assert.deepStrictEqual(aRecords, ['192.0.2.1']);
+        assert.deepStrictEqual(mxRecords, ['192.0.2.1']);
+        assert.deepStrictEqual(arities, [2, 3], "Explicit 'A' must use the two-argument resolver form");
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.isInvalidUnparseableAddress = test => {
+test('isInvalidUnparseableAddress', async () => {
     // Garbage input must be reported invalid, not throw
     const result = tools.isInvalid({ dnsOptions: {} }, 'not-an-ip');
-    test.ok(result);
-    test.ok(result.includes('not in a recognised notation'));
-    test.done();
-};
+    assert.ok(result);
+    assert.ok(result.includes('not in a recognised notation'));
+});
 
-module.exports.isInvalidLocalInterfaceAddress = test => {
+test('isInvalidLocalInterfaceAddress', async () => {
     // 0.0.0.0 is collected as a local interface address; with
     // blockLocalAddresses it must be reported as such (the interface check
     // runs before the always-invalid range check)
     const result = tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, '0.0.0.0');
-    test.ok(result);
-    test.ok(result.includes('local interface'));
-    test.done();
-};
+    assert.ok(result);
+    assert.ok(result.includes('local interface'));
+});
 
-module.exports.isInvalidIgnoreIPv6 = test => {
+test('isInvalidIgnoreIPv6', async () => {
     // ignoreIPv6 is about which addresses may be used, not only which lookups are worth
     // making, so it has to be decided here as well. Skipping AAAA queries alone leaves an
     // address handed over through the mx option unfiltered, since no lookup produced it.
     for (const ip of ['2606:4700:4700::1111', '::1', 'fe80::1', '64:ff9b::8.8.8.8', '::ffff:8.8.8.8']) {
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed without ignoreIPv6`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be allowed without ignoreIPv6`);
         const result = tools.isInvalid({ dnsOptions: { ignoreIPv6: true } }, ip);
-        test.ok(result, `${ip} should be refused with ignoreIPv6`);
-        test.ok(result.includes('ignoreIPv6'), `${ip} should be refused by name so the cause is obvious`);
+        assert.ok(result, `${ip} should be refused with ignoreIPv6`);
+        assert.ok(result.includes('ignoreIPv6'), `${ip} should be refused by name so the cause is obvious`);
     }
 
     // IPv4 is unaffected
     for (const ip of ['8.8.8.8', '192.0.2.1']) {
-        test.equal(tools.isInvalid({ dnsOptions: { ignoreIPv6: true } }, ip), false, `${ip} should be unaffected by ignoreIPv6`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: { ignoreIPv6: true } }, ip), false, `${ip} should be unaffected by ignoreIPv6`);
     }
+});
 
-    test.done();
-};
-
-module.exports.isInvalidLocalNat64Prefixes = test => {
+test('isInvalidLocalNat64Prefixes', async () => {
     // RFC 6052 also allows a NAT64 prefix taken from a network's own address space, which
     // nothing in the address marks as one. Only the operator knows, so they can declare it
     // and have the carried address checked like any other.
@@ -363,26 +355,24 @@ module.exports.isInvalidLocalNat64Prefixes = test => {
         const options = { blockLocalAddresses: true, nat64Prefixes: [cidr] };
 
         const result = tools.isInvalid({ dnsOptions: options }, loopback);
-        test.ok(result, `${cidr} carrying 127.0.0.1 should be refused`);
-        test.ok(result.includes('127.0.0.1'), `${cidr} should name the carried address`);
+        assert.ok(result, `${cidr} carrying 127.0.0.1 should be refused`);
+        assert.ok(result.includes('127.0.0.1'), `${cidr} should name the carried address`);
 
         // Undeclared, the same address is indistinguishable from an ordinary IPv6 host
-        test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, loopback), false, `${cidr} cannot be detected unless declared`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, loopback), false, `${cidr} cannot be detected unless declared`);
 
         // A public address behind the same prefix stays deliverable
-        test.equal(tools.isInvalid({ dnsOptions: options }, publicHost), false, `${cidr} carrying a public address should be deliverable`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: options }, publicHost), false, `${cidr} carrying a public address should be deliverable`);
     }
 
     // Addresses outside the declared prefix are untouched
-    test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true, nat64Prefixes: ['2a01:4f8::/96'] } }, '2606:4700:4700::1111'), false);
+    assert.strictEqual(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true, nat64Prefixes: ['2a01:4f8::/96'] } }, '2606:4700:4700::1111'), false);
 
     // A prefix that cannot be parsed must be ignored rather than throw on every address
-    test.equal(tools.isInvalid({ dnsOptions: { nat64Prefixes: ['not-a-cidr', '198.51.100.0/24'] } }, '8.8.8.8'), false);
+    assert.strictEqual(tools.isInvalid({ dnsOptions: { nat64Prefixes: ['not-a-cidr', '198.51.100.0/24'] } }, '8.8.8.8'), false);
+});
 
-    test.done();
-};
-
-module.exports.isInvalidLocalNat64PrefixesCannotWeakenChecks = test => {
+test('isInvalidLocalNat64PrefixesCannotWeakenChecks', async () => {
     // A declared prefix must not become a way to stop the address being judged as itself.
     // Unlike the well-known prefix, a locally run one sits in the network's own range, so
     // the outer address is meaningful: replacing it with the address it carries let a
@@ -395,8 +385,8 @@ module.exports.isInvalidLocalNat64PrefixesCannotWeakenChecks = test => {
         ['fec0::1', 'fec0::/32'],
         ['::1', '::/0']
     ]) {
-        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused without any prefix declared`);
-        test.ok(
+        assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused without any prefix declared`);
+        assert.ok(
             tools.isInvalid({ dnsOptions: { blockLocalAddresses: true, nat64Prefixes: [prefix] } }, ip),
             `${ip} must stay refused when ${prefix} is declared`
         );
@@ -407,39 +397,34 @@ module.exports.isInvalidLocalNat64PrefixesCannotWeakenChecks = test => {
     // depends on. /33 used to throw from inside ipaddr.js.
     for (const prefix of ['2a01:4f8::/97', '2a01:4f8::/33', '2a01:4f8::/128', '2a01:4f8::/0', '10.0.0.0/8', 'not-a-cidr']) {
         const options = { dnsOptions: { blockLocalAddresses: true, nat64Prefixes: [prefix] } };
-        test.equal(tools.isInvalid(options, '2a01:4f8:c17:b8f::7f00:1'), false, `${prefix} should be ignored, not throw`);
-        test.ok(tools.isInvalid(options, '127.0.0.1'), `${prefix} must not disturb ordinary validation`);
+        assert.strictEqual(tools.isInvalid(options, '2a01:4f8:c17:b8f::7f00:1'), false, `${prefix} should be ignored, not throw`);
+        assert.ok(tools.isInvalid(options, '127.0.0.1'), `${prefix} must not disturb ordinary validation`);
     }
+});
 
-    test.done();
-};
-
-module.exports.isInvalidLocalNat64PrefixesUnderRfc8215 = test => {
+test('isInvalidLocalNat64PrefixesUnderRfc8215', async () => {
     // RFC 8215 set 64:ff9b:1::/48 aside for exactly the locally chosen prefixes this option
     // describes, so refusing the whole range even after the operator has declared one would
     // contradict the advice to declare it. Undeclared it stays a blanket refusal, because
     // what is missing there is knowing where in the address the IPv4 sits.
     const declared = { blockLocalAddresses: true, nat64Prefixes: ['64:ff9b:1:abcd::/96'] };
 
-    test.ok(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:abcd::7f00:1'), 'a declared prefix carrying loopback is still refused');
-    test.equal(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:abcd::808:808'), false, 'a declared prefix carrying a public host should deliver');
-    test.ok(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:9999::808:808'), 'a different prefix in the range stays blanket refused');
+    assert.ok(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:abcd::7f00:1'), 'a declared prefix carrying loopback is still refused');
+    assert.strictEqual(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:abcd::808:808'), false, 'a declared prefix carrying a public host should deliver');
+    assert.ok(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:9999::808:808'), 'a different prefix in the range stays blanket refused');
 
     for (const ip of ['64:ff9b:1::7f00:1', '64:ff9b:1:abcd::808:808']) {
-        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused when nothing is declared`);
-        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be unaffected without blockLocalAddresses`);
+        assert.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused when nothing is declared`);
+        assert.strictEqual(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be unaffected without blockLocalAddresses`);
     }
+});
 
-    test.done();
-};
-
-module.exports.isInvalidNat64PrefixesNotAnArray = test => {
+test('isInvalidNat64PrefixesNotAnArray', async () => {
     // isInvalid is the one check every address depends on, so a configuration mistake must
     // not throw its way out of it. An array-like used to reach the loop and fail there.
     for (const value of [{ length: 3 }, 'a-string', 42, null, {}, new Set(['64:ff9b:1::/96'])]) {
         const options = { dnsOptions: { blockLocalAddresses: true, nat64Prefixes: value } };
-        test.equal(tools.isInvalid(options, '2606:4700:4700::1111'), false, 'a public address should still be judged normally');
-        test.ok(tools.isInvalid(options, '127.0.0.1'), 'ordinary validation must be undisturbed');
+        assert.strictEqual(tools.isInvalid(options, '2606:4700:4700::1111'), false, 'a public address should still be judged normally');
+        assert.ok(tools.isInvalid(options, '127.0.0.1'), 'ordinary validation must be undisturbed');
     }
-    test.done();
-};
+});

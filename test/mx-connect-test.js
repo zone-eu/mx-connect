@@ -1,9 +1,12 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const mxConnect = require('../lib/mx-connect');
 const { createMockDnsResolver, createTrackingDnsResolver, createMockSocket, startGreetingServer, closeServer } = require('./test-utils');
 
-module.exports.basicWithMock = test => {
+test('basicWithMock', (t, done) => {
     const mockResolver = createMockDnsResolver({
         'test.example.com:MX': {
             data: [{ exchange: 'mail.example.com', priority: 10 }]
@@ -22,15 +25,15 @@ module.exports.basicWithMock = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection.socket);
-            test.equal(connection.host, '192.0.2.1');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection.socket);
+            assert.strictEqual(connection.host, '192.0.2.1');
+            done();
         }
     );
-};
+});
 
-module.exports.addressWithMock = test => {
+test('addressWithMock', (t, done) => {
     const mockResolver = createMockDnsResolver({
         'example.com:MX': {
             data: [{ exchange: 'mail.example.com', priority: 10 }]
@@ -49,14 +52,14 @@ module.exports.addressWithMock = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection.socket);
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection.socket);
+            done();
         }
     );
-};
+});
 
-module.exports.preResolvedMx = test => {
+test('preResolvedMx', (t, done) => {
     mxConnect(
         {
             target: 'test.example.com',
@@ -74,15 +77,15 @@ module.exports.preResolvedMx = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection.socket);
-            test.equal(connection.host, '192.0.2.1');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection.socket);
+            assert.strictEqual(connection.host, '192.0.2.1');
+            done();
         }
     );
-};
+});
 
-module.exports.dnsFailure = test => {
+test('dnsFailure', (t, done) => {
     const mockResolver = createMockDnsResolver({
         'fail.example.com:MX': { error: { code: 'SERVFAIL' } }
     });
@@ -93,15 +96,15 @@ module.exports.dnsFailure = test => {
             dnsOptions: { resolve: mockResolver }
         },
         (err, connection) => {
-            test.ok(err);
-            test.ok(!connection);
-            test.equal(err.category, 'dns');
-            test.done();
+            assert.ok(err);
+            assert.ok(!connection);
+            assert.strictEqual(err.category, 'dns');
+            done();
         }
     );
-};
+});
 
-module.exports.connectionFailure = test => {
+test('connectionFailure', (t, done) => {
     const mockResolver = createMockDnsResolver({
         'noconnect.example.com:MX': {
             data: [{ exchange: 'mail.example.com', priority: 10 }]
@@ -121,14 +124,14 @@ module.exports.connectionFailure = test => {
             }
         },
         (err, connection) => {
-            test.ok(err);
-            test.ok(!connection);
-            test.done();
+            assert.ok(err);
+            assert.ok(!connection);
+            done();
         }
     );
-};
+});
 
-module.exports.mtaStsDisabled = test => {
+test('mtaStsDisabled', (t, done) => {
     mxConnect(
         {
             target: 'test.example.com',
@@ -149,15 +152,15 @@ module.exports.mtaStsDisabled = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection.socket);
-            test.ok(!connection.policyMatch);
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection.socket);
+            assert.ok(!connection.policyMatch);
+            done();
         }
     );
-};
+});
 
-module.exports.customPort = test => {
+test('customPort', (t, done) => {
     let usedPort = null;
 
     mxConnect(
@@ -179,14 +182,14 @@ module.exports.customPort = test => {
             }
         },
         err => {
-            test.ifError(err);
-            test.equal(usedPort, 587);
-            test.done();
+            assert.ifError(err);
+            assert.strictEqual(usedPort, 587);
+            done();
         }
     );
-};
+});
 
-module.exports.mxPriorityOrdering = test => {
+test('mxPriorityOrdering', (t, done) => {
     let connectedHost = null;
 
     mxConnect(
@@ -204,18 +207,18 @@ module.exports.mxPriorityOrdering = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
+            assert.ifError(err);
             // Should connect to primary first (lower priority number = higher priority)
-            test.equal(connectedHost, '192.0.2.1');
-            test.equal(connection.host, '192.0.2.1');
-            test.done();
+            assert.strictEqual(connectedHost, '192.0.2.1');
+            assert.strictEqual(connection.host, '192.0.2.1');
+            done();
         }
     );
-};
+});
 
 // Promise-based API tests
 
-module.exports.promiseBasic = async test => {
+test('promiseBasic', async () => {
     try {
         const connection = await mxConnect({
             target: 'test.example.com',
@@ -225,15 +228,14 @@ module.exports.promiseBasic = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.host, '192.0.2.1');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.host, '192.0.2.1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.promiseRejectsOnError = async test => {
+test('promiseRejectsOnError', async () => {
     const mockResolver = createMockDnsResolver({
         'fail.example.com:MX': { error: { code: 'SERVFAIL' } }
     });
@@ -243,15 +245,14 @@ module.exports.promiseRejectsOnError = async test => {
             target: 'fail.example.com',
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.ok(err);
-        test.equal(err.category, 'dns');
+        assert.ok(err);
+        assert.strictEqual(err.category, 'dns');
     }
-    test.done();
-};
+});
 
-module.exports.promiseReturnsPromiseWithCallback = async test => {
+test('promiseReturnsPromiseWithCallback', async () => {
     // Verify that mxConnect returns a promise even when callback is provided,
     // and that the callback still fires alongside the promise resolution
     let callbackResult = null;
@@ -270,24 +271,23 @@ module.exports.promiseReturnsPromiseWithCallback = async test => {
         }
     );
 
-    test.ok(result instanceof Promise, 'Should return a promise when callback is provided');
+    assert.ok(result instanceof Promise, 'Should return a promise when callback is provided');
 
     try {
         const connection = await result;
-        test.ok(connection.socket);
+        assert.ok(connection.socket);
 
         // The callback bridge defers via setImmediate, give it a beat to run
         await new Promise(resolve => setImmediate(resolve));
-        test.ok(callbackResult, 'Callback should have been invoked');
-        test.ifError(callbackResult.err);
-        test.equal(callbackResult.connection, connection, 'Callback and promise should deliver the same result');
+        assert.ok(callbackResult, 'Callback should have been invoked');
+        assert.ifError(callbackResult.err);
+        assert.strictEqual(callbackResult.connection, connection, 'Callback and promise should deliver the same result');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.stringShorthandTarget = async test => {
+test('stringShorthandTarget', async () => {
     // mxConnect('domain') string shorthand must behave like { target: 'domain' }
     const mockResolver = createMockDnsResolver({
         'shorthand.example.com:MX': { error: { code: 'ENODATA' } },
@@ -298,15 +298,14 @@ module.exports.stringShorthandTarget = async test => {
     try {
         // No MX/A/AAAA records: rejection proves the string target went through the pipeline
         await mxConnect({ target: 'shorthand.example.com', dnsOptions: { resolve: mockResolver } });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('shorthand.example.com'));
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('shorthand.example.com'));
     }
-    test.done();
-};
+});
 
-module.exports.stringMxEntryIp = async test => {
+test('stringMxEntryIp', async () => {
     // mx entries given as plain IP strings must connect without DNS lookups
     try {
         const connection = await mxConnect({
@@ -317,15 +316,14 @@ module.exports.stringMxEntryIp = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.host, '192.0.2.5');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.host, '192.0.2.5');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.stringMxEntryHostname = async test => {
+test('stringMxEntryHostname', async () => {
     // mx entries given as hostname strings must be resolved to IP addresses
     const mockResolver = createMockDnsResolver({
         'mail.example.com:A': { data: ['192.0.2.6'] },
@@ -342,30 +340,28 @@ module.exports.stringMxEntryHostname = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.host, '192.0.2.6');
-        test.equal(connection.hostname, 'mail.example.com');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.host, '192.0.2.6');
+        assert.strictEqual(connection.hostname, 'mail.example.com');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.emptyTargetRejectsCleanly = async test => {
+test('emptyTargetRejectsCleanly', async () => {
     // A missing target must produce a clean DNS-category rejection, never a
     // synchronous throw
     const mockResolver = createMockDnsResolver({});
 
     try {
         await mxConnect({ dnsOptions: { resolve: mockResolver } });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
+        assert.strictEqual(err.category, 'dns');
     }
-    test.done();
-};
+});
 
-module.exports.callbackThrowDoesNotDoubleInvoke = async test => {
+test('callbackThrowDoesNotDoubleInvoke', async () => {
     // A callback that throws must surface as an uncaught exception (classic
     // callback semantics) and must NOT be re-invoked with its own error
     let calls = 0;
@@ -392,21 +388,20 @@ module.exports.callbackThrowDoesNotDoubleInvoke = async test => {
         );
 
         const err = await caught;
-        test.equal(err.message, 'callback boom', 'The thrown error should surface as an uncaught exception');
+        assert.strictEqual(err.message, 'callback boom', 'The thrown error should surface as an uncaught exception');
 
         // Give any (incorrect) second invocation a chance to happen
         await new Promise(resolve => setImmediate(resolve));
-        test.equal(calls, 1, 'Callback must be invoked exactly once');
+        assert.strictEqual(calls, 1, 'Callback must be invoked exactly once');
     } finally {
         process.removeAllListeners('uncaughtException');
         for (const listener of originalListeners) {
             process.on('uncaughtException', listener);
         }
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsEnforceRejectsEndToEnd = async test => {
+test('mtaStsEnforceRejectsEndToEnd', async () => {
     // Full pipeline MTA-STS test with a mocked TXT record and cached policy:
     // an MX host not covered by an enforce-mode policy must be rejected
     const mockResolver = createMockDnsResolver({
@@ -435,16 +430,15 @@ module.exports.mtaStsEnforceRejectsEndToEnd = async test => {
                 return callback();
             }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'policy');
-        test.equal(setCalls.length, 1, 'The renewed policy should have been cached');
-        test.equal(setCalls[0].domain, 'sts-e2e.example.com');
+        assert.strictEqual(err.category, 'policy');
+        assert.strictEqual(setCalls.length, 1, 'The renewed policy should have been cached');
+        assert.strictEqual(setCalls[0].domain, 'sts-e2e.example.com');
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsValidMxConnectsEndToEnd = async test => {
+test('mtaStsValidMxConnectsEndToEnd', async () => {
     // Full pipeline MTA-STS test: an MX host listed in the enforce-mode policy
     // must connect and carry the policy match on the connection
     const mockResolver = createMockDnsResolver({
@@ -472,16 +466,15 @@ module.exports.mtaStsValidMxConnectsEndToEnd = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.policyMatch.valid, true);
-        test.equal(connection.policyMatch.mode, 'enforce');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.policyMatch.valid, true);
+        assert.strictEqual(connection.policyMatch.mode, 'enforce');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsNoPolicyNoCacheConnects = async test => {
+test('mtaStsNoPolicyNoCacheConnects', async () => {
     // MTA-STS enabled without a cache handler and with no policy published:
     // the default no-op cache is used and the connection proceeds in mode none
     const mockResolver = createMockDnsResolver({});
@@ -497,16 +490,15 @@ module.exports.mtaStsNoPolicyNoCacheConnects = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.policyMatch.valid, true);
-        test.equal(connection.policyMatch.mode, 'none');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.policyMatch.valid, true);
+        assert.strictEqual(connection.policyMatch.mode, 'none');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.mxOptionIpLiteralValidated = async test => {
+test('mxOptionIpLiteralValidated', async () => {
     // Addresses passed through the mx option skip MX resolution, and used to skip
     // validation with it, which left blockLocalAddresses silently inert for exactly
     // the input an operator is most likely to hand-craft
@@ -523,17 +515,16 @@ module.exports.mxOptionIpLiteralValidated = async test => {
                 return callback();
             }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'InvalidIpAddress');
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('127.0.0.1'));
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('127.0.0.1'));
     }
-    test.deepEqual(attempts, [], 'No connection may be attempted to a blocked address');
-    test.done();
-};
+    assert.deepStrictEqual(attempts, [], 'No connection may be attempted to a blocked address');
+});
 
-module.exports.mxOptionPreResolvedAddressValidated = async test => {
+test('mxOptionPreResolvedAddressValidated', async () => {
     // Same for addresses supplied on a resolved MX object, including the transition
     // forms that reach an internal IPv4 host through an outwardly public IPv6 address
     for (const address of ['127.0.0.1', '64:ff9b::7f00:1']) {
@@ -547,16 +538,15 @@ module.exports.mxOptionPreResolvedAddressValidated = async test => {
                     return callback();
                 }
             });
-            test.ok(false, `Should have rejected ${address}`);
+            assert.ok(false, `Should have rejected ${address}`);
         } catch (err) {
-            test.equal(err.code, 'InvalidIpAddress', `${address} should be rejected as invalid`);
-            test.ok(err.message.includes('127.0.0.1'), `${address} should be reported by the address it reaches`);
+            assert.strictEqual(err.code, 'InvalidIpAddress', `${address} should be rejected as invalid`);
+            assert.ok(err.message.includes('127.0.0.1'), `${address} should be reported by the address it reaches`);
         }
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsPolicyHostAddressValidated = async test => {
+test('mtaStsPolicyHostAddressValidated', async () => {
     // Fetching an MTA-STS policy means an HTTPS request to whatever mta-sts.<domain>
     // resolves to, before any MX record is considered. A domain must not be able to
     // publish a policy host pointing at an internal address and have every delivery
@@ -583,29 +573,28 @@ module.exports.mtaStsPolicyHostAddressValidated = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.host, '192.0.2.1');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.host, '192.0.2.1');
         // With the policy host unusable no policy is fetched, so nothing is enforced
-        test.equal(connection.policyMatch.mode, 'none');
+        assert.strictEqual(connection.policyMatch.mode, 'none');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     const blocked = (seenDelivery && seenDelivery.blockedAddresses) || [];
-    test.deepEqual(
+    assert.deepStrictEqual(
         blocked.map(entry => entry.ip),
         ['169.254.169.254'],
         'The policy host address should be recorded as blocked'
     );
-    test.equal(blocked[0].exchange, 'mta-sts.sts-ssrf.example.com');
+    assert.strictEqual(blocked[0].exchange, 'mta-sts.sts-ssrf.example.com');
 
     const skipped = logEntries.filter(entry => entry.msg === 'Skipped MTA-STS policy host address');
-    test.equal(skipped.length, 1);
-    test.equal(skipped[0].host, '169.254.169.254');
-    test.done();
-};
+    assert.strictEqual(skipped.length, 1);
+    assert.strictEqual(skipped[0].host, '169.254.169.254');
+});
 
-module.exports.mtaStsPolicyResolverUsesTwoArgumentAForm = async test => {
+test('mtaStsPolicyResolverUsesTwoArgumentAForm', async () => {
     // mailauth asks for A records explicitly, while custom resolvers are promised that
     // A lookups always arrive in the two-argument form. A resolver implementing only
     // that form must not be left waiting for a callback that never comes.
@@ -625,23 +614,22 @@ module.exports.mtaStsPolicyResolverUsesTwoArgumentAForm = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
+        assert.ok(connection.socket);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.sts-arity.example.com');
-    test.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
-    test.equal(policyHostCalls[0].type, 'A');
-    test.equal(policyHostCalls[0].args, 2, 'A lookups must use the two-argument resolver form');
+    assert.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
+    assert.strictEqual(policyHostCalls[0].type, 'A');
+    assert.strictEqual(policyHostCalls[0].args, 2, 'A lookups must use the two-argument resolver form');
 
     const txtCalls = calls.filter(entry => entry.type === 'TXT');
-    test.equal(txtCalls.length, 1);
-    test.equal(txtCalls[0].args, 3, 'Other record types keep the three-argument form');
-    test.done();
-};
+    assert.strictEqual(txtCalls.length, 1);
+    assert.strictEqual(txtCalls[0].args, 3, 'Other record types keep the three-argument form');
+});
 
-module.exports.mtaStsPolicyResolverHonoursIgnoreIPv6 = async test => {
+test('mtaStsPolicyResolverHonoursIgnoreIPv6', async () => {
     // mailauth falls back to an AAAA lookup for the policy host when the A lookup comes
     // back empty, which would reach for IPv6 on a host that asked never to use it
     const { resolver, calls } = createTrackingDnsResolver({
@@ -660,17 +648,16 @@ module.exports.mtaStsPolicyResolverHonoursIgnoreIPv6 = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
+        assert.ok(connection.socket);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     const aaaaCalls = calls.filter(entry => entry.type === 'AAAA');
-    test.deepEqual(aaaaCalls, [], 'No AAAA lookup may be issued when ignoreIPv6 is set');
-    test.done();
-};
+    assert.deepStrictEqual(aaaaCalls, [], 'No AAAA lookup may be issued when ignoreIPv6 is set');
+});
 
-module.exports.mxOptionNonCanonicalAddressRejected = async test => {
+test('mxOptionNonCanonicalAddressRejected', async () => {
     // ipaddr.js reads a leading zero as octal, the platform resolver reads it as decimal,
     // so 0127.0.0.1 is the public 87.0.0.1 to a range check and 127.0.0.1 to the socket.
     // net.connect would hand such a string to dns.lookup, so the address validated has to
@@ -688,16 +675,15 @@ module.exports.mxOptionNonCanonicalAddressRejected = async test => {
                     return callback();
                 }
             });
-            test.ok(false, `Should have rejected ${address}`);
+            assert.ok(false, `Should have rejected ${address}`);
         } catch (err) {
-            test.equal(err.code, 'InvalidIpAddress', `${address} should be refused`);
+            assert.strictEqual(err.code, 'InvalidIpAddress', `${address} should be refused`);
         }
-        test.deepEqual(attempts, [], `no connection may be attempted for ${address}`);
+        assert.deepStrictEqual(attempts, [], `no connection may be attempted for ${address}`);
     }
-    test.done();
-};
+});
 
-module.exports.mxOptionIPv6RejectedWhenIgnoreIPv6 = async test => {
+test('mxOptionIPv6RejectedWhenIgnoreIPv6', async () => {
     // Skipping AAAA lookups does nothing for an address the caller supplied directly, so
     // ignoreIPv6 used to be silently inert for the mx option and the delivery went out
     // over IPv6 anyway
@@ -722,11 +708,11 @@ module.exports.mxOptionIPv6RejectedWhenIgnoreIPv6 = async test => {
                     return callback();
                 }
             });
-            test.ok(false, `Should have rejected an IPv6 address given as ${label}`);
+            assert.ok(false, `Should have rejected an IPv6 address given as ${label}`);
         } catch (err) {
-            test.equal(err.code, 'InvalidIpAddress', `${label} should be refused as an invalid address`);
+            assert.strictEqual(err.code, 'InvalidIpAddress', `${label} should be refused as an invalid address`);
         }
-        test.deepEqual(attempts, [], `No IPv6 connection may be attempted for ${label}`);
+        assert.deepStrictEqual(attempts, [], `No IPv6 connection may be attempted for ${label}`);
     }
 
     // An entry that also carries an IPv4 address stays deliverable over IPv4, and the
@@ -743,36 +729,34 @@ module.exports.mxOptionIPv6RejectedWhenIgnoreIPv6 = async test => {
                 return callback();
             }
         });
-        test.equal(connection.host, '192.0.2.1', 'Delivery must fall to the IPv4 address rather than fail');
+        assert.strictEqual(connection.host, '192.0.2.1', 'Delivery must fall to the IPv4 address rather than fail');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     const blocked = (seenDelivery && seenDelivery.blockedAddresses) || [];
-    test.deepEqual(
+    assert.deepStrictEqual(
         blocked.map(entry => entry.ip),
         ['2606:4700:4700::1111'],
         'The dropped IPv6 address must be recorded'
     );
-    test.ok(blocked[0].reason.includes('ignoreIPv6'), 'The record must name the option that dropped it');
+    assert.ok(blocked[0].reason.includes('ignoreIPv6'), 'The record must name the option that dropped it');
+});
 
-    test.done();
-};
-
-module.exports.ignoreIPv6TargetRefusedAndRetryable = async test => {
+test('ignoreIPv6TargetRefusedAndRetryable', async () => {
     // An IPv6 target is refused by the address check rather than while parsing, so the
     // error names the address and carries a code. It is also temporary: nothing is wrong
     // with the host, this sender just does not use IPv6, so the message waits for the
     // setting to change instead of bouncing.
     try {
         await mxConnect({ target: '[IPv6:2001:db8:1ff::a0b:dbd0]', dnsOptions: { ignoreIPv6: true } });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'InvalidIpAddress');
-        test.equal(err.category, 'dns');
-        test.equal(err.temporary, true, 'A local transport policy must not bounce the message');
-        test.ok(err.message.includes('2001:db8:1ff::a0b:dbd0'));
-        test.ok(err.message.includes('given as the delivery target'), 'The target must not be reported as an MX lookup result');
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.temporary, true, 'A local transport policy must not bounce the message');
+        assert.ok(err.message.includes('2001:db8:1ff::a0b:dbd0'));
+        assert.ok(err.message.includes('given as the delivery target'), 'The target must not be reported as an MX lookup result');
     }
 
     // An IPv6 target that is never used as a destination, because the mx option supplies
@@ -787,14 +771,13 @@ module.exports.ignoreIPv6TargetRefusedAndRetryable = async test => {
                 return callback();
             }
         });
-        test.equal(connection.host, '192.0.2.1', 'An unused IPv6 target must not block delivery');
+        assert.strictEqual(connection.host, '192.0.2.1', 'An unused IPv6 target must not block delivery');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.blockedAddressRefusalStaysPermanent = async test => {
+test('blockedAddressRefusalStaysPermanent', async () => {
     // A refusal that is a property of the destination stays permanent: retrying will not
     // make a loopback MX deliverable
     try {
@@ -803,15 +786,14 @@ module.exports.blockedAddressRefusalStaysPermanent = async test => {
             mx: ['127.0.0.1'],
             dnsOptions: { blockLocalAddresses: true }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'InvalidIpAddress');
-        test.ok(!err.temporary, 'A blocked destination must not be retried');
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.ok(!err.temporary, 'A blocked destination must not be retried');
     }
-    test.done();
-};
+});
 
-module.exports.mtaStsPolicyHostAddressPassesFilter = async test => {
+test('mtaStsPolicyHostAddressPassesFilter', async () => {
     // The other MTA-STS tests either use a cached policy or have the policy host address
     // rejected, so none of them proves an accepted address still reaches mailauth. Without
     // this, a filter that rejected everything would silently stop policies being fetched at
@@ -838,19 +820,18 @@ module.exports.mtaStsPolicyHostAddressPassesFilter = async test => {
                 return callback();
             }
         });
-        test.ok(connection.socket);
-        test.equal(connection.host, '192.0.2.1');
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.host, '192.0.2.1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.pass.example.com');
-    test.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
-    test.deepEqual((seenDelivery && seenDelivery.blockedAddresses) || [], [], 'An allowed policy host address must not be filtered out');
-    test.done();
-};
+    assert.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
+    assert.deepStrictEqual((seenDelivery && seenDelivery.blockedAddresses) || [], [], 'An allowed policy host address must not be filtered out');
+});
 
-module.exports.endToEndOverRealSocket = async test => {
+test('endToEndOverRealSocket', async () => {
     // The whole public API against a real socket, with no connectHook diverting it and no
     // network beyond loopback. Every other test here supplies its own socket, so this is
     // the only one that proves the pieces connect to anything.
@@ -859,17 +840,16 @@ module.exports.endToEndOverRealSocket = async test => {
 
     try {
         const connection = await mxConnect({ target: 'mx-connect.test', mx: ['127.0.0.1'], port });
-        test.ok(connection.socket);
-        test.equal(connection.host, '127.0.0.1');
-        test.equal(connection.port, port);
+        assert.ok(connection.socket);
+        assert.strictEqual(connection.host, '127.0.0.1');
+        assert.strictEqual(connection.port, port);
 
         const greeting = await new Promise(resolve => connection.socket.once('data', chunk => resolve(chunk.toString())));
-        test.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
+        assert.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
         connection.socket.destroy();
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
 
     await closeServer(server);
-    test.done();
-};
+});

@@ -1,9 +1,12 @@
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const resolveIp = require('../lib/resolve-ip');
 const { createMockDnsResolver, createTrackingDnsResolver, createDnsError } = require('./test-utils');
 
-module.exports.dnsError = async test => {
+test('dnsError', async () => {
     const mockResolver = createMockDnsResolver({
         'mail.fail.example.com:A': { error: createDnsError('SERVFAIL') },
         'mail.fail.example.com:AAAA': { error: createDnsError('SERVFAIL') }
@@ -15,15 +18,14 @@ module.exports.dnsError = async test => {
             mx: [{ exchange: 'mail.fail.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.category, 'dns');
-        test.equal(err.temporary, true);
+        assert.strictEqual(err.category, 'dns');
+        assert.strictEqual(err.temporary, true);
     }
-    test.done();
-};
+});
 
-module.exports.partialSuccess = async test => {
+test('partialSuccess', async () => {
     const mockResolver = createMockDnsResolver({
         'primary.example.com:A': { error: createDnsError('SERVFAIL') },
         'primary.example.com:AAAA': { error: createDnsError('SERVFAIL') },
@@ -41,16 +43,15 @@ module.exports.partialSuccess = async test => {
             dnsOptions: { resolve: mockResolver }
         });
         // Primary MX failed but backup succeeded
-        test.equal(delivery.mx[0].A.length, 0);
-        test.equal(delivery.mx[1].A.length, 1);
-        test.equal(delivery.mx[1].A[0], '192.0.2.1');
+        assert.strictEqual(delivery.mx[0].A.length, 0);
+        assert.strictEqual(delivery.mx[1].A.length, 1);
+        assert.strictEqual(delivery.mx[1].A[0], '192.0.2.1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.noAddressFound = async test => {
+test('noAddressFound', async () => {
     const mockResolver = createMockDnsResolver({
         'mail.empty.example.com:A': { error: createDnsError('ENOTFOUND') },
         'mail.empty.example.com:AAAA': { error: createDnsError('ENOTFOUND') }
@@ -62,15 +63,14 @@ module.exports.noAddressFound = async test => {
             mx: [{ exchange: 'mail.empty.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'ENOTFOUND');
-        test.equal(err.category, 'dns');
+        assert.strictEqual(err.code, 'ENOTFOUND');
+        assert.strictEqual(err.category, 'dns');
     }
-    test.done();
-};
+});
 
-module.exports.ipv4Only = async test => {
+test('ipv4Only', async () => {
     const mockResolver = createMockDnsResolver({
         'mail.example.com:A': { data: ['192.0.2.1', '192.0.2.2'] },
         'mail.example.com:AAAA': { error: createDnsError('ENODATA') }
@@ -82,17 +82,16 @@ module.exports.ipv4Only = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx[0].A.length, 2);
-        test.equal(delivery.mx[0].A[0], '192.0.2.1');
-        test.equal(delivery.mx[0].A[1], '192.0.2.2');
-        test.equal(delivery.mx[0].AAAA.length, 0);
+        assert.strictEqual(delivery.mx[0].A.length, 2);
+        assert.strictEqual(delivery.mx[0].A[0], '192.0.2.1');
+        assert.strictEqual(delivery.mx[0].A[1], '192.0.2.2');
+        assert.strictEqual(delivery.mx[0].AAAA.length, 0);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ignoreIPv6 = async test => {
+test('ignoreIPv6', async () => {
     const mockResolver = createMockDnsResolver({
         'mail.example.com:A': { data: ['192.0.2.1'] }
     });
@@ -103,17 +102,16 @@ module.exports.ignoreIPv6 = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
         });
-        test.equal(delivery.mx[0].A.length, 1);
-        test.equal(delivery.mx[0].A[0], '192.0.2.1');
+        assert.strictEqual(delivery.mx[0].A.length, 1);
+        assert.strictEqual(delivery.mx[0].A[0], '192.0.2.1');
         // AAAA should not be resolved when ignoreIPv6 is true
-        test.equal(delivery.mx[0].AAAA.length, 0);
+        assert.strictEqual(delivery.mx[0].AAAA.length, 0);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.customResolverCalledWithCorrectArgs = async test => {
+test('customResolverCalledWithCorrectArgs', async () => {
     const calls = [];
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
         const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
@@ -138,18 +136,17 @@ module.exports.customResolverCalledWithCorrectArgs = async test => {
             dnsOptions: { resolve: customResolver }
         });
         // Should have called resolver for both A and AAAA
-        test.equal(calls.length, 2);
-        test.ok(calls.some(c => c.domain === 'mail.example.com' && c.type === 'A'));
-        test.ok(calls.some(c => c.domain === 'mail.example.com' && c.type === 'AAAA'));
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.1']);
-        test.deepEqual(delivery.mx[0].AAAA, ['2001:db8::1']);
+        assert.strictEqual(calls.length, 2);
+        assert.ok(calls.some(c => c.domain === 'mail.example.com' && c.type === 'A'));
+        assert.ok(calls.some(c => c.domain === 'mail.example.com' && c.type === 'AAAA'));
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.1']);
+        assert.deepStrictEqual(delivery.mx[0].AAAA, ['2001:db8::1']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.dualStack = async test => {
+test('dualStack', async () => {
     const mockResolver = createMockDnsResolver({
         'mail.example.com:A': { data: ['192.0.2.1'] },
         'mail.example.com:AAAA': { data: ['2001:db8::1'] }
@@ -161,17 +158,16 @@ module.exports.dualStack = async test => {
             mx: [{ exchange: 'mail.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver }
         });
-        test.equal(delivery.mx[0].A.length, 1);
-        test.equal(delivery.mx[0].A[0], '192.0.2.1');
-        test.equal(delivery.mx[0].AAAA.length, 1);
-        test.equal(delivery.mx[0].AAAA[0], '2001:db8::1');
+        assert.strictEqual(delivery.mx[0].A.length, 1);
+        assert.strictEqual(delivery.mx[0].A[0], '192.0.2.1');
+        assert.strictEqual(delivery.mx[0].AAAA.length, 1);
+        assert.strictEqual(delivery.mx[0].AAAA[0], '2001:db8::1');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ipExchangeSkipsDnsLookup = async test => {
+test('ipExchangeSkipsDnsLookup', async () => {
     // An exchange that is already an IP address must not trigger DNS lookups
     const calls = [];
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
@@ -189,16 +185,15 @@ module.exports.ipExchangeSkipsDnsLookup = async test => {
             ],
             dnsOptions: { resolve: customResolver }
         });
-        test.equal(calls.length, 0, 'No DNS lookups expected for IP address exchanges');
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.1']);
-        test.deepEqual(delivery.mx[1].AAAA, ['2001:db8::1']);
+        assert.strictEqual(calls.length, 0, 'No DNS lookups expected for IP address exchanges');
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.1']);
+        assert.deepStrictEqual(delivery.mx[1].AAAA, ['2001:db8::1']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.blockedLocalAddressRejected = async test => {
+test('blockedLocalAddressRejected', async () => {
     // An MX host resolving only to a blocked local address must be rejected
     const mockResolver = createMockDnsResolver({
         'mail.local.example.com:A': { data: ['127.0.0.1'] },
@@ -211,16 +206,15 @@ module.exports.blockedLocalAddressRejected = async test => {
             mx: [{ exchange: 'mail.local.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver, blockLocalAddresses: true }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'InvalidIpAddress');
-        test.equal(err.category, 'dns');
-        test.ok(err.message.includes('127.0.0.1'));
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.strictEqual(err.category, 'dns');
+        assert.ok(err.message.includes('127.0.0.1'));
     }
-    test.done();
-};
+});
 
-module.exports.blockedLocalAddressFilteredWhenOthersRemain = async test => {
+test('blockedLocalAddressFilteredWhenOthersRemain', async () => {
     // Blocked addresses are filtered out but delivery proceeds via valid hosts
     const mockResolver = createMockDnsResolver({
         'bad.example.com:A': { data: ['127.0.0.1'] },
@@ -238,15 +232,14 @@ module.exports.blockedLocalAddressFilteredWhenOthersRemain = async test => {
             ],
             dnsOptions: { resolve: mockResolver, blockLocalAddresses: true }
         });
-        test.deepEqual(delivery.mx[0].A, [], 'Blocked address must be filtered out');
-        test.deepEqual(delivery.mx[1].A, ['192.0.2.9']);
+        assert.deepStrictEqual(delivery.mx[0].A, [], 'Blocked address must be filtered out');
+        assert.deepStrictEqual(delivery.mx[1].A, ['192.0.2.9']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.entryWithoutExchangeIsSkipped = async test => {
+test('entryWithoutExchangeIsSkipped', async () => {
     // An MX entry without an exchange must be skipped without DNS lookups and
     // without breaking resolution for the remaining entries
     const mockResolver = createMockDnsResolver({
@@ -263,15 +256,14 @@ module.exports.entryWithoutExchangeIsSkipped = async test => {
             ],
             dnsOptions: { resolve: mockResolver }
         });
-        test.deepEqual(delivery.mx[0].A, []);
-        test.deepEqual(delivery.mx[1].A, ['192.0.2.1']);
+        assert.deepStrictEqual(delivery.mx[0].A, []);
+        assert.deepStrictEqual(delivery.mx[1].A, ['192.0.2.1']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.providedAddressesValidatedWithoutLookup = async test => {
+test('providedAddressesValidatedWithoutLookup', async () => {
     // Addresses supplied through the mx option are the only ones no DNS lookup
     // produced. They must be used as they are, and still pass validation - this step
     // is the only place any address is checked.
@@ -287,16 +279,15 @@ module.exports.providedAddressesValidatedWithoutLookup = async test => {
 
     try {
         await resolveIp(delivery);
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'InvalidIpAddress');
-        test.ok(err.message.includes('127.0.0.1'));
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.ok(err.message.includes('127.0.0.1'));
     }
-    test.deepEqual(calls, [], 'Caller-supplied addresses must not be looked up again');
-    test.done();
-};
+    assert.deepStrictEqual(calls, [], 'Caller-supplied addresses must not be looked up again');
+});
 
-module.exports.providedAddressesKeptWhenValid = async test => {
+test('providedAddressesKeptWhenValid', async () => {
     // A caller-supplied address that passes validation survives untouched, and an
     // entry that needs resolving in the same set is still resolved
     const mockResolver = createMockDnsResolver({
@@ -313,15 +304,14 @@ module.exports.providedAddressesKeptWhenValid = async test => {
             ],
             dnsOptions: { resolve: mockResolver }
         });
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.10'], 'The supplied address must not be replaced by a lookup');
-        test.deepEqual(delivery.mx[1].A, ['192.0.2.20']);
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.10'], 'The supplied address must not be replaced by a lookup');
+        assert.deepStrictEqual(delivery.mx[1].A, ['192.0.2.20']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.blockedAddressesRecordedOnDelivery = async test => {
+test('blockedAddressesRecordedOnDelivery', async () => {
     // Filtering that leaves other addresses usable is otherwise invisible: the host
     // simply becomes unreachable later and looks like a network failure. Record what
     // policy removed so the two can be told apart.
@@ -336,21 +326,20 @@ module.exports.blockedAddressesRecordedOnDelivery = async test => {
             mx: [{ exchange: 'mail.mixed.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver, blockLocalAddresses: true }
         });
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.9'], 'Delivery continues over the address that passed');
-        test.deepEqual(delivery.mx[0].AAAA, []);
-        test.deepEqual(
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.9'], 'Delivery continues over the address that passed');
+        assert.deepStrictEqual(delivery.mx[0].AAAA, []);
+        assert.deepStrictEqual(
             delivery.blockedAddresses.map(entry => entry.ip),
             ['127.0.0.1', '64:ff9b::7f00:1']
         );
-        test.equal(delivery.blockedAddresses[0].exchange, 'mail.mixed.example.com');
-        test.ok(delivery.blockedAddresses[1].reason.includes('127.0.0.1'), 'A NAT64 address should be reported by the IPv4 address it carries');
+        assert.strictEqual(delivery.blockedAddresses[0].exchange, 'mail.mixed.example.com');
+        assert.ok(delivery.blockedAddresses[1].reason.includes('127.0.0.1'), 'A NAT64 address should be reported by the IPv4 address it carries');
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.resolverReturningUndefinedTreatedAsEmpty = async test => {
+test('resolverReturningUndefinedTreatedAsEmpty', async () => {
     // A custom resolver that calls back without a result list must be treated
     // as an empty answer, not crash
     const customResolver = (domain, typeOrCallback, maybeCallback) => {
@@ -364,15 +353,14 @@ module.exports.resolverReturningUndefinedTreatedAsEmpty = async test => {
             mx: [{ exchange: 'mail.undef.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: customResolver }
         });
-        test.ok(false, 'Should have rejected with no addresses found');
+        assert.ok(false, 'Should have rejected with no addresses found');
     } catch (err) {
-        test.equal(err.code, 'ENOTFOUND');
-        test.equal(err.category, 'dns');
+        assert.strictEqual(err.code, 'ENOTFOUND');
+        assert.strictEqual(err.category, 'dns');
     }
-    test.done();
-};
+});
 
-module.exports.entryWithoutAddressArrays = async test => {
+test('entryWithoutAddressArrays', async () => {
     // An MX entry need not arrive carrying A/AAAA arrays. mx-connect always supplies them,
     // but this step is driven directly too, and the lookups used to be what created them.
     const mockResolver = createMockDnsResolver({
@@ -386,15 +374,14 @@ module.exports.entryWithoutAddressArrays = async test => {
             mx: [{ exchange: 'mail.bare.example.com', priority: 10 }],
             dnsOptions: { resolve: mockResolver }
         });
-        test.deepEqual(delivery.mx[0].A, ['192.0.2.30']);
-        test.deepEqual(delivery.mx[0].AAAA, ['2606:4700:4700::1111']);
+        assert.deepStrictEqual(delivery.mx[0].A, ['192.0.2.30']);
+        assert.deepStrictEqual(delivery.mx[0].AAAA, ['2606:4700:4700::1111']);
     } catch (err) {
-        test.ifError(err);
+        assert.ifError(err);
     }
-    test.done();
-};
+});
 
-module.exports.ignoreIPv6ReportsIpv6OnlyHost = async test => {
+test('ignoreIPv6ReportsIpv6OnlyHost', async () => {
     // ignoreIPv6 skips the AAAA lookups, so a host reachable only over IPv6 looked exactly
     // like one with no addresses at all and the delivery bounced as "nothing resolved". The
     // records are now asked for once the delivery has already failed, purely to report it
@@ -412,21 +399,20 @@ module.exports.ignoreIPv6ReportsIpv6OnlyHost = async test => {
 
     try {
         await resolveIp(delivery);
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'InvalidIpAddress');
-        test.equal(err.temporary, true, 'A local setting must hold the message rather than bounce it');
-        test.ok(err.message.includes('2606:4700:4700::1111'), 'The error should name the address that was passed over');
-        test.deepEqual(
+        assert.strictEqual(err.code, 'InvalidIpAddress');
+        assert.strictEqual(err.temporary, true, 'A local setting must hold the message rather than bounce it');
+        assert.ok(err.message.includes('2606:4700:4700::1111'), 'The error should name the address that was passed over');
+        assert.deepStrictEqual(
             delivery.blockedAddresses.map(entry => entry.ip),
             ['2606:4700:4700::1111'],
             'The address should be recorded so the cause is visible'
         );
     }
-    test.done();
-};
+});
 
-module.exports.ignoreIPv6HostWithNoAddressesAtAll = async test => {
+test('ignoreIPv6HostWithNoAddressesAtAll', async () => {
     // A host with genuinely nothing published must stay a plain "nothing resolved" rather
     // than be misreported as an IPv6 problem
     const mockResolver = createMockDnsResolver({});
@@ -437,10 +423,9 @@ module.exports.ignoreIPv6HostWithNoAddressesAtAll = async test => {
             mx: [{ exchange: 'mail.nothing.example.com', priority: 10, A: [], AAAA: [] }],
             dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
         });
-        test.ok(false, 'Should have rejected');
+        assert.ok(false, 'Should have rejected');
     } catch (err) {
-        test.equal(err.code, 'ENOTFOUND');
-        test.ok(!err.temporary);
+        assert.strictEqual(err.code, 'ENOTFOUND');
+        assert.ok(!err.temporary);
     }
-    test.done();
-};
+});

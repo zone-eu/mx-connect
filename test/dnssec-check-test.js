@@ -2,6 +2,9 @@
 
 'use strict';
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const mxConnect = require('../lib/mx-connect');
 const { createMockSocket, createDnsError } = require('./test-utils');
 
@@ -11,7 +14,7 @@ const { createMockSocket, createDnsError } = require('./test-utils');
  * When checkDnssecSecure reports { secure: true }, the TLSA resolver
  * should be called as normal.
  */
-module.exports.dnssecSecureZoneProceedsToTlsa = test => {
+test('dnssecSecureZoneProceedsToTlsa', (t, done) => {
     let tlsaLookupCalled = false;
 
     const mockResolveTlsa = async () => {
@@ -44,14 +47,14 @@ module.exports.dnssecSecureZoneProceedsToTlsa = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
-            test.ok(tlsaLookupCalled, 'resolveTlsa should be called when zone is DNSSEC-secure');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
+            assert.ok(tlsaLookupCalled, 'resolveTlsa should be called when zone is DNSSEC-secure');
+            done();
         }
     );
-};
+});
 
 /**
  * Test: Insecure zone skips TLSA lookup
@@ -60,7 +63,7 @@ module.exports.dnssecSecureZoneProceedsToTlsa = test => {
  * should NOT be called and the connection should proceed with
  * opportunistic TLS (empty tlsaRecords).
  */
-module.exports.insecureZoneSkipsTlsa = test => {
+test('insecureZoneSkipsTlsa', (t, done) => {
     let tlsaLookupCalled = false;
     let logMessages = [];
 
@@ -96,20 +99,20 @@ module.exports.insecureZoneSkipsTlsa = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
-            test.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when zone is insecure');
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
+            assert.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when zone is insecure');
 
             // Verify that the skip was logged
             const skipLog = logMessages.find(log => log.msg && log.msg.includes('Skipping TLSA lookup for insecure'));
-            test.ok(skipLog, 'Should log that TLSA lookup was skipped for insecure zone');
-            test.equal(skipLog.hostname, 'mail.eo.outlook.com', 'Log should include the MX hostname');
+            assert.ok(skipLog, 'Should log that TLSA lookup was skipped for insecure zone');
+            assert.strictEqual(skipLog.hostname, 'mail.eo.outlook.com', 'Log should include the MX hostname');
 
-            test.done();
+            done();
         }
     );
-};
+});
 
 /**
  * Test: checkDnssecSecure failure is a lookup failure, not "insecure"
@@ -120,7 +123,7 @@ module.exports.insecureZoneSkipsTlsa = test => {
  * MX is marked as a DANE lookup failure and the connection is rejected
  * with a temporary error instead.
  */
-function testDnssecCheckFailure(test, code) {
+function testDnssecCheckFailure(done, code) {
     let tlsaLookupCalled = false;
     let logMessages = [];
 
@@ -158,31 +161,31 @@ function testDnssecCheckFailure(test, code) {
             }
         },
         (err, connection) => {
-            test.ok(err, `${code} from the DNSSEC check must not bypass DANE`);
-            test.ok(!connection, 'Connection should not exist');
-            test.equal(err.category, 'dane', 'Error category should be dane');
-            test.ok(err.temporary, 'Error should be temporary so the message is retried');
-            test.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when DNSSEC check fails');
+            assert.ok(err, `${code} from the DNSSEC check must not bypass DANE`);
+            assert.ok(!connection, 'Connection should not exist');
+            assert.strictEqual(err.category, 'dane', 'Error category should be dane');
+            assert.ok(err.temporary, 'Error should be temporary so the message is retried');
+            assert.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when DNSSEC check fails');
 
             // Verify that the failure was logged
             const failLog = logMessages.find(log => log.msg && log.msg.includes('DNSSEC status check failed'));
-            test.ok(failLog, 'Should log that DNSSEC check failed');
-            test.equal(failLog.code, code, 'Log should include the error code');
+            assert.ok(failLog, 'Should log that DNSSEC check failed');
+            assert.strictEqual(failLog.code, code, 'Log should include the error code');
 
-            test.done();
+            done();
         }
     );
 }
 
-module.exports.dnssecCheckFailureRejectsConnection = test => testDnssecCheckFailure(test, 'ESERVFAIL');
+test('dnssecCheckFailureRejectsConnection', (t, done) => testDnssecCheckFailure(done, 'ESERVFAIL'));
 
 //
 // ENODATA/ENOTFOUND mean "no TLSA records" when they come from a TLSA lookup,
 // but from the DNSSEC check they only mean the zone status is unknown. Folding
 // them into the no-records case would reopen the DANE bypass.
 //
-module.exports.dnssecCheckNoDataRejectsConnection = test => testDnssecCheckFailure(test, 'ENOTFOUND');
-module.exports.dnssecCheckNxDomainRejectsConnection = test => testDnssecCheckFailure(test, 'ENODATA');
+test('dnssecCheckNoDataRejectsConnection', (t, done) => testDnssecCheckFailure(done, 'ENOTFOUND'));
+test('dnssecCheckNxDomainRejectsConnection', (t, done) => testDnssecCheckFailure(done, 'ENODATA'));
 
 /**
  * Test: Without checkDnssecSecure, TLSA lookup proceeds as normal
@@ -190,7 +193,7 @@ module.exports.dnssecCheckNxDomainRejectsConnection = test => testDnssecCheckFai
  * When checkDnssecSecure is not provided, the existing behavior should
  * be preserved: TLSA lookups are attempted for all MX hosts.
  */
-module.exports.withoutCheckDnssecSecureTlsaProceeds = test => {
+test('withoutCheckDnssecSecureTlsaProceeds', (t, done) => {
     let tlsaLookupCalled = false;
 
     const mockResolveTlsa = async () => {
@@ -221,14 +224,14 @@ module.exports.withoutCheckDnssecSecureTlsaProceeds = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(connection.socket, 'Connection should have socket');
-            test.ok(tlsaLookupCalled, 'resolveTlsa should be called when checkDnssecSecure is not provided');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(connection.socket, 'Connection should have socket');
+            assert.ok(tlsaLookupCalled, 'resolveTlsa should be called when checkDnssecSecure is not provided');
+            done();
         }
     );
-};
+});
 
 /**
  * Test: checkDnssecSecure receives the correct MX hostname
@@ -236,7 +239,7 @@ module.exports.withoutCheckDnssecSecureTlsaProceeds = test => {
  * Verifies that the callback receives the MX exchange hostname,
  * not the target domain or TLSA query name.
  */
-module.exports.checkDnssecSecureReceivesCorrectHostname = test => {
+test('checkDnssecSecureReceivesCorrectHostname', (t, done) => {
     let receivedHostname = null;
 
     const mockResolveTlsa = async () => [];
@@ -269,13 +272,13 @@ module.exports.checkDnssecSecureReceivesCorrectHostname = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.equal(receivedHostname, 'mx1.secure-provider.com', 'checkDnssecSecure should receive the MX exchange hostname');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.strictEqual(receivedHostname, 'mx1.secure-provider.com', 'checkDnssecSecure should receive the MX exchange hostname');
+            done();
         }
     );
-};
+});
 
 /**
  * Test: Multiple MX hosts with mixed DNSSEC status
@@ -284,7 +287,7 @@ module.exports.checkDnssecSecureReceivesCorrectHostname = test => {
  * called for each one independently. Secure hosts get TLSA lookups,
  * insecure hosts skip them.
  */
-module.exports.multipleMxHostsMixedDnssecStatus = test => {
+test('multipleMxHostsMixedDnssecStatus', (t, done) => {
     let tlsaLookupHostnames = [];
     let dnssecCheckHostnames = [];
 
@@ -333,22 +336,22 @@ module.exports.multipleMxHostsMixedDnssecStatus = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
 
             // Both hosts should have been checked for DNSSEC status
-            test.equal(dnssecCheckHostnames.length, 2, 'Should check DNSSEC status for both MX hosts');
-            test.ok(dnssecCheckHostnames.includes('mx1.secure.com'), 'Should check mx1.secure.com');
-            test.ok(dnssecCheckHostnames.includes('mx2.insecure.com'), 'Should check mx2.insecure.com');
+            assert.strictEqual(dnssecCheckHostnames.length, 2, 'Should check DNSSEC status for both MX hosts');
+            assert.ok(dnssecCheckHostnames.includes('mx1.secure.com'), 'Should check mx1.secure.com');
+            assert.ok(dnssecCheckHostnames.includes('mx2.insecure.com'), 'Should check mx2.insecure.com');
 
             // Only the secure host should have had TLSA lookup
-            test.equal(tlsaLookupHostnames.length, 1, 'Should only perform TLSA lookup for secure host');
-            test.equal(tlsaLookupHostnames[0], 'mx1.secure.com', 'TLSA lookup should be for the secure host');
+            assert.strictEqual(tlsaLookupHostnames.length, 1, 'Should only perform TLSA lookup for secure host');
+            assert.strictEqual(tlsaLookupHostnames[0], 'mx1.secure.com', 'TLSA lookup should be for the secure host');
 
-            test.done();
+            done();
         }
     );
-};
+});
 
 /**
  * Test: checkDnssecSecure returning null/undefined is treated as insecure
@@ -356,7 +359,7 @@ module.exports.multipleMxHostsMixedDnssecStatus = test => {
  * Edge case: if the callback returns a falsy value instead of { secure: false },
  * it should still be treated as insecure.
  */
-module.exports.dnssecCheckReturningNullTreatedAsInsecure = test => {
+test('dnssecCheckReturningNullTreatedAsInsecure', (t, done) => {
     let tlsaLookupCalled = false;
 
     const mockResolveTlsa = async () => {
@@ -389,13 +392,13 @@ module.exports.dnssecCheckReturningNullTreatedAsInsecure = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when checkDnssecSecure returns null');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(!tlsaLookupCalled, 'resolveTlsa should NOT be called when checkDnssecSecure returns null');
+            done();
         }
     );
-};
+});
 
 /**
  * Test: Pre-resolved TLSA records bypass DNSSEC check
@@ -403,7 +406,7 @@ module.exports.dnssecCheckReturningNullTreatedAsInsecure = test => {
  * When MX entries already have tlsaRecords, the checkDnssecSecure
  * callback should not be called for those entries.
  */
-module.exports.preResolvedTlsaBypassesDnssecCheck = test => {
+test('preResolvedTlsaBypassesDnssecCheck', (t, done) => {
     let dnssecCheckCalled = false;
 
     const mockTlsaRecords = [
@@ -443,12 +446,12 @@ module.exports.preResolvedTlsaBypassesDnssecCheck = test => {
             }
         },
         (err, connection) => {
-            test.ifError(err);
-            test.ok(connection, 'Connection should exist');
-            test.ok(!dnssecCheckCalled, 'checkDnssecSecure should NOT be called when TLSA records are pre-resolved');
-            test.ok(connection.tlsaRecords, 'Connection should have pre-resolved TLSA records');
-            test.equal(connection.tlsaRecords.length, 1, 'Should have 1 pre-resolved TLSA record');
-            test.done();
+            assert.ifError(err);
+            assert.ok(connection, 'Connection should exist');
+            assert.ok(!dnssecCheckCalled, 'checkDnssecSecure should NOT be called when TLSA records are pre-resolved');
+            assert.ok(connection.tlsaRecords, 'Connection should have pre-resolved TLSA records');
+            assert.strictEqual(connection.tlsaRecords.length, 1, 'Should have 1 pre-resolved TLSA record');
+            done();
         }
     );
-};
+});
