@@ -79,6 +79,7 @@ You can use a domain name or an email address as the target, for additional conf
     - **preferIPv6** (boolean, defaults to `false`) If true then use IPv6 address even if IPv4 address is also available
     - **blockLocalAddresses** (boolean, defaults to `false`) If true then refuses to connect to IP addresses that are in a local or private scope, or attached to the server. People put every kind of stuff in MX records, you do not want to flood your loopback interface because someone thought it is a great idea to set 127.0.0.1 as the MX server. Covers loopback (`127.0.0.0/8`, `::1`), private networks (RFC1918), link-local (`169.254.0.0/16`, `fe80::/10`), carrier-grade NAT (`100.64.0.0/10`), IPv6 unique-local (`fc00::/7`) and deprecated site-local (`fec0::/10`). Also covers the local-use NAT64 prefix (`64:ff9b:1::/48`), whose embedded IPv4 address depends on the local network configuration and so cannot be checked
     - **blockReservedNetworks** (boolean, defaults to `false`) If true then also refuses to connect to IANA special-purpose addresses: future-use (`240.0.0.0/4`), the documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`), benchmarking (`198.18.0.0/15`, `2001:2::/48`) and AMT (`2001:3::/32`). Off by default so that the documentation ranges stay usable in tests and staging setups
+    - **nat64Prefixes** (array of CIDR strings, defaults to `[]`) The NAT64 prefixes your network runs, for example `['2a01:4f8:c17:b8f::/96']`. The well-known prefix `64:ff9b::/96` is always recognised; a prefix from your own address space cannot be, since nothing in the address identifies it. Declaring it lets the IPv4 address such an address carries be validated like any other, so a synthesized record pointing at `127.0.0.1` is refused while one pointing at a public host still delivers, and the address is still judged on its own account as well. RFC 7050 describes how to discover the prefix your network uses. Only the prefix lengths RFC 6052 defines (32, 40, 48, 56, 64 and 96) carry an address at a known position, so an entry with any other length is ignored, as is one that cannot be parsed
     - **resolve** (function, defaults to native `dns.resolve`) Custom callback-style DNS resolver function with signature `resolve(domain, type, callback)` or `resolve(domain, callback)`. A record lookups always use the two-argument form `resolve(domain, callback)`, other record types (`MX`, `AAAA`, `TXT`) use the three-argument form
 
     Addresses that can never be a real mail host are always rejected, whatever the options above are set to: the unspecified address (`0.0.0.0`, `::`), the limited broadcast address (`255.255.255.255`), multicast (`224.0.0.0/4`, `ff00::/8`), the discard prefix (`100::/64`) and segment routing identifiers (`5f00::/16`).
@@ -87,7 +88,7 @@ You can use a domain name or an email address as the target, for additional conf
 
     An IPv6 address that carries an IPv4 address inside it is judged as the IPv4 address the connection actually reaches, so it can neither slip past `blockLocalAddresses` nor be refused when the host it reaches is an ordinary public one. This covers IPv4-mapped (`::ffff:127.0.0.1`), the deprecated IPv4-compatible form (`::127.0.0.1`), NAT64 (`64:ff9b::/96`), IPv4-translated (`::ffff:0:0:0/96`), 6to4 (`2002::/16`) and Teredo (`2001::/32`). So `64:ff9b::7f00:1` is refused because it reaches `127.0.0.1`, while `64:ff9b::8.8.8.8` is fine - which matters on IPv6-only networks, where DNS64 synthesizes exactly these records for every IPv4-only mail host. For 6to4 and Teredo both tunnel endpoints are checked as well as the address itself. `ignoreIPv6` is decided separately from this unwrapping, since it is about which stack the socket uses rather than where the packets land, so `::ffff:8.8.8.8` and `64:ff9b::8.8.8.8` are still refused as IPv6 even though they reach an IPv4 host.
 
-    One case cannot be covered: RFC 6052 also lets a network use a NAT64 prefix out of its own address space, and nothing in such an address marks it as one, so `2a01:4f8:c17:b8f::7f00:1` is indistinguishable from an ordinary IPv6 host. If you run NAT64 on a network-specific prefix, block that prefix at the firewall rather than relying on `blockLocalAddresses`.
+    RFC 6052 also lets a network run NAT64 on a prefix out of its own address space, and nothing in such an address marks it as one, so `2a01:4f8:c17:b8f::7f00:1` is indistinguishable from an ordinary IPv6 host. Only you know that prefix, so declare it with **nat64Prefixes** and the address it carries is checked like any other.
 
     All of the above, `ignoreIPv6` included, is decided in one place for every address the library resolves or is given, including addresses you pass in yourself through the **mx** option and the host a domain's MTA-STS policy is fetched from. The one exception is **connectHook**: it is handed the same options object used to open the socket, so a hook that rewrites `options.host` connects wherever it says, by design. Addresses dropped by these rules are listed on the `delivery.blockedAddresses` array handed to the `connectHook` and `connectError` callbacks, so filtering that still leaves a usable address can be told apart from a network failure.
 
@@ -159,17 +160,17 @@ For domains with properly configured DNSSEC, DANE provides strong protection aga
 
 ### Node.js Version Support
 
-Native `dns.resolveTlsa` support was added in:
+Node.js 22.19.0 or newer is required. The floor comes from `mailauth`, which this package depends on for MTA-STS policy handling.
+
+Native `dns.resolveTlsa`, used for DANE, is available across that whole range:
 
 | Node.js Version | TLSA Support |
 | --------------- | ------------ |
 | v24.x           | Native       |
 | v23.9.0+        | Native       |
-| v22.15.0+       | Native       |
-| v22.0.0-v22.14  | None         |
-| v20.x and older | None         |
+| v22.19.0+       | Native       |
 
-**Note:** `dane.enabled` must be set to `true` explicitly to activate DANE. There is no auto-detection. On Node.js versions without native `dns.resolveTlsa`, provide a custom resolver via the `dane.resolveTlsa` option.
+**Note:** `dane.enabled` must be set to `true` explicitly to activate DANE. There is no auto-detection. A custom resolver can still be supplied through the `dane.resolveTlsa` option if you want to route TLSA lookups through your own validating resolver.
 
 ### Custom TLSA Resolver
 

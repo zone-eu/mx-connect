@@ -4,7 +4,7 @@
     "description": "Establish TCP connection to a MX server with MTA-STS and DANE/TLSA support",
     "main": "lib/mx-connect.js",
     "engines": {
-        "node": ">=14.0.0"
+        "node": ">=22.19.0"
     },
     "scripts": {
         "test": "grunt",
@@ -37,16 +37,16 @@
     "devDependencies": {
         "@eslint/js": "10.0.1",
         "eslint-config-prettier": "10.1.8",
-        "globals": "17.7.0",
-        "grunt": "1.6.2",
+        "globals": "17.11.0",
+        "grunt": "1.6.3",
         "grunt-cli": "1.5.0",
         "grunt-contrib-nodeunit": "5.0.0",
         "grunt-eslint": "26.0.0",
         "prettier": "3.9.6"
     },
     "dependencies": {
-        "ipaddr.js": "2.4.0",
-        "mailauth": "4.13.3",
+        "ipaddr.js": "2.5.0",
+        "mailauth": "5.0.1",
         "punycode": "^2.3.1"
     }
 }

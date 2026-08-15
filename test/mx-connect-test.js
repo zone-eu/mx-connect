@@ -1,7 +1,7 @@
 'use strict';
 
 const mxConnect = require('../lib/mx-connect');
-const { createMockDnsResolver, createTrackingDnsResolver, createMockSocket } = require('./test-utils');
+const { createMockDnsResolver, createTrackingDnsResolver, createMockSocket, startGreetingServer, closeServer } = require('./test-utils');
 
 module.exports.basicWithMock = test => {
     const mockResolver = createMockDnsResolver({
@@ -847,5 +847,29 @@ module.exports.mtaStsPolicyHostAddressPassesFilter = async test => {
     const policyHostCalls = calls.filter(entry => entry.domain === 'mta-sts.pass.example.com');
     test.ok(policyHostCalls.length > 0, 'The policy host must be resolved');
     test.deepEqual((seenDelivery && seenDelivery.blockedAddresses) || [], [], 'An allowed policy host address must not be filtered out');
+    test.done();
+};
+
+module.exports.endToEndOverRealSocket = async test => {
+    // The whole public API against a real socket, with no connectHook diverting it and no
+    // network beyond loopback. Every other test here supplies its own socket, so this is
+    // the only one that proves the pieces connect to anything.
+    const server = await startGreetingServer();
+    const { port } = server.address();
+
+    try {
+        const connection = await mxConnect({ target: 'mx-connect.test', mx: ['127.0.0.1'], port });
+        test.ok(connection.socket);
+        test.equal(connection.host, '127.0.0.1');
+        test.equal(connection.port, port);
+
+        const greeting = await new Promise(resolve => connection.socket.once('data', chunk => resolve(chunk.toString())));
+        test.ok(greeting.startsWith('220 '), 'The connected socket must carry the greeting');
+        connection.socket.destroy();
+    } catch (err) {
+        test.ifError(err);
+    }
+
+    await closeServer(server);
     test.done();
 };

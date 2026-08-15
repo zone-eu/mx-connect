@@ -393,3 +393,54 @@ module.exports.entryWithoutAddressArrays = async test => {
     }
     test.done();
 };
+
+module.exports.ignoreIPv6ReportsIpv6OnlyHost = async test => {
+    // ignoreIPv6 skips the AAAA lookups, so a host reachable only over IPv6 looked exactly
+    // like one with no addresses at all and the delivery bounced as "nothing resolved". The
+    // records are now asked for once the delivery has already failed, purely to report it
+    // accurately and retryably.
+    const mockResolver = createMockDnsResolver({
+        'mail.v6only.example.com:A': { error: createDnsError('ENODATA') },
+        'mail.v6only.example.com:AAAA': { data: ['2606:4700:4700::1111'] }
+    });
+
+    const delivery = {
+        domain: 'v6only.example.com',
+        mx: [{ exchange: 'mail.v6only.example.com', priority: 10, A: [], AAAA: [] }],
+        dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
+    };
+
+    try {
+        await resolveIp(delivery);
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'InvalidIpAddress');
+        test.equal(err.temporary, true, 'A local setting must hold the message rather than bounce it');
+        test.ok(err.message.includes('2606:4700:4700::1111'), 'The error should name the address that was passed over');
+        test.deepEqual(
+            delivery.blockedAddresses.map(entry => entry.ip),
+            ['2606:4700:4700::1111'],
+            'The address should be recorded so the cause is visible'
+        );
+    }
+    test.done();
+};
+
+module.exports.ignoreIPv6HostWithNoAddressesAtAll = async test => {
+    // A host with genuinely nothing published must stay a plain "nothing resolved" rather
+    // than be misreported as an IPv6 problem
+    const mockResolver = createMockDnsResolver({});
+
+    try {
+        await resolveIp({
+            domain: 'nothing.example.com',
+            mx: [{ exchange: 'mail.nothing.example.com', priority: 10, A: [], AAAA: [] }],
+            dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
+        });
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.code, 'ENOTFOUND');
+        test.ok(!err.temporary);
+    }
+    test.done();
+};

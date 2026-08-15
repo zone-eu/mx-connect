@@ -22,6 +22,11 @@ jobs:
                   cache: npm
             - run: npm ci
             - run: npm run lint
-            # Unit tests only: the integration suite needs outbound port 25,
-            # which GitHub-hosted runners block
+            # Covers the socket layer too, against a listener the suite starts on a loopback
+            # high port, so nothing here needs the outbound port 25 that runners block
             - run: npm run test:unit
+            # Real DNS and a real MTA-STS policy fetch, which no unit test can cover. Kept
+            # out of the blocking path because a failure can equally mean someone changed a
+            # published record, and that should not stop an unrelated pull request.
+            - run: npm run test:integration
+              continue-on-error: true
