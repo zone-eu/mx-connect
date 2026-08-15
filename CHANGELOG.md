@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.0.0](https://github.com/zone-eu/mx-connect/compare/v1.7.0...v2.0.0) (2026-08-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* Node.js 22.19.0 or newer is now required. The previous range claimed 14 and above, which no longer holds once mailauth is up to date.
+
+### Features
+
+* **dns:** accept a promise-based custom DNS resolver ([4cf3466](https://github.com/zone-eu/mx-connect/commit/4cf346622cbae7d22c49c3b56d828af8d50e3f8c))
+* **dns:** accept a promise-based custom DNS resolver ([a85d4cd](https://github.com/zone-eu/mx-connect/commit/a85d4cd873f517cc573b05fe391f647538e161a1))
+* **dns:** allow declaring local NAT64 prefixes ([202a5dd](https://github.com/zone-eu/mx-connect/commit/202a5dd52ff43769af0c6acfb745aa68fb298485))
+* **dns:** validate IPv4 addresses carried by IPv6 transition addresses ([e452eec](https://github.com/zone-eu/mx-connect/commit/e452eec43753de64564c83ab71dbc1730831996b))
+* require Node 22.19.0 and refresh dependencies ([fdded42](https://github.com/zone-eu/mx-connect/commit/fdded42a19e829839f96a68e76c336b77a88939d))
+* validate every connection address, migrate internals to async/await ([aa9129a](https://github.com/zone-eu/mx-connect/commit/aa9129a05500da4c135c8341a66444476e103532))
+
+
+### Bug Fixes
+
+* **dns:** enforce ignoreIPv6 for every address, not just lookups ([30a0028](https://github.com/zone-eu/mx-connect/commit/30a002838db270693e5ff3ec33fbd051111900ba))
+* **dns:** give an address lookup failure one wording ([a1c041a](https://github.com/zone-eu/mx-connect/commit/a1c041a08b3a34436e8dd486f46f76e46518e48e))
+* **dns:** keep judging the address a declared NAT64 prefix matches ([10fe9b2](https://github.com/zone-eu/mx-connect/commit/10fe9b2887664ecb55b0a6ebebf79f27cee4f54c))
+* **dns:** let a declared prefix cover the RFC 8215 NAT64 range ([776c6f7](https://github.com/zone-eu/mx-connect/commit/776c6f7281c7c17aff7579030043707fe53eb1dc))
+* **dns:** report an IPv6-only host accurately under ignoreIPv6 ([64f145f](https://github.com/zone-eu/mx-connect/commit/64f145f154b76b4737f2726857c48a5bf4dd54c0))
+* **dns:** validate only canonical IP literals ([e6c928d](https://github.com/zone-eu/mx-connect/commit/e6c928d34cafa72f80a42cadb4f7fcd8d1cb1d55))
+* **npm:** publish only lib, not the whole repository ([55b23ab](https://github.com/zone-eu/mx-connect/commit/55b23ab2959433d6846b860ec1464c2900f49f94))
+* prevent unhandled socket error events and crashes on malformed MX responses ([b2d7892](https://github.com/zone-eu/mx-connect/commit/b2d7892b424767ee2a121f54025d87298c3803e7))
+* **resolve-ip:** tolerate MX entries without address arrays ([d8fbead](https://github.com/zone-eu/mx-connect/commit/d8fbead9b290534fdffa63803212d3e2fb3475ab))
+
 ## [1.7.0](https://github.com/zone-eu/mx-connect/compare/v1.6.0...v1.7.0) (2026-07-21)
 
 
