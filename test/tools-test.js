@@ -413,3 +413,33 @@ module.exports.isInvalidLocalNat64PrefixesCannotWeakenChecks = test => {
 
     test.done();
 };
+
+module.exports.isInvalidLocalNat64PrefixesUnderRfc8215 = test => {
+    // RFC 8215 set 64:ff9b:1::/48 aside for exactly the locally chosen prefixes this option
+    // describes, so refusing the whole range even after the operator has declared one would
+    // contradict the advice to declare it. Undeclared it stays a blanket refusal, because
+    // what is missing there is knowing where in the address the IPv4 sits.
+    const declared = { blockLocalAddresses: true, nat64Prefixes: ['64:ff9b:1:abcd::/96'] };
+
+    test.ok(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:abcd::7f00:1'), 'a declared prefix carrying loopback is still refused');
+    test.equal(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:abcd::808:808'), false, 'a declared prefix carrying a public host should deliver');
+    test.ok(tools.isInvalid({ dnsOptions: declared }, '64:ff9b:1:9999::808:808'), 'a different prefix in the range stays blanket refused');
+
+    for (const ip of ['64:ff9b:1::7f00:1', '64:ff9b:1:abcd::808:808']) {
+        test.ok(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, ip), `${ip} should be refused when nothing is declared`);
+        test.equal(tools.isInvalid({ dnsOptions: {} }, ip), false, `${ip} should be unaffected without blockLocalAddresses`);
+    }
+
+    test.done();
+};
+
+module.exports.isInvalidNat64PrefixesNotAnArray = test => {
+    // isInvalid is the one check every address depends on, so a configuration mistake must
+    // not throw its way out of it. An array-like used to reach the loop and fail there.
+    for (const value of [{ length: 3 }, 'a-string', 42, null, {}, new Set(['64:ff9b:1::/96'])]) {
+        const options = { dnsOptions: { blockLocalAddresses: true, nat64Prefixes: value } };
+        test.equal(tools.isInvalid(options, '2606:4700:4700::1111'), false, 'a public address should still be judged normally');
+        test.ok(tools.isInvalid(options, '127.0.0.1'), 'ordinary validation must be undisturbed');
+    }
+    test.done();
+};
