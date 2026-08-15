@@ -95,6 +95,35 @@ function createTrackingDnsResolver(responses) {
 }
 
 /**
+ * Creates a promise-based mock resolver for the dnsOptions.resolveRecords option, using the
+ * same response map as createMockDnsResolver.
+ *
+ * Returns { resolver, calls }, where calls holds `domain:type` strings in order. The
+ * resolver returns the records rather than taking a callback, and throws for a miss, which
+ * is how that option reports a lookup failure.
+ *
+ * @param {Object} responses - Map of `domain:type` (or bare domain) keys to { data } or { error }
+ */
+function createMockRecordResolver(responses) {
+    const calls = [];
+
+    const resolver = (domain, type) => {
+        calls.push(`${domain}:${type}`);
+
+        const response = responses[`${domain}:${type}`] || responses[domain];
+        if (!response) {
+            throw createDnsError('ENOTFOUND');
+        }
+        if (response.error) {
+            throw response.error;
+        }
+        return response.data;
+    };
+
+    return { resolver, calls };
+}
+
+/**
  * Creates a DNS error with the specified code.
  */
 function createDnsError(code, message) {
@@ -178,6 +207,7 @@ module.exports = {
     getFreePort,
     createMockDnsResolver,
     createTrackingDnsResolver,
+    createMockRecordResolver,
     createDnsError,
     createMockSocket,
     createMockConnectHook,

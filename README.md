@@ -92,20 +92,20 @@ The family-specific options let you bind a different source address per family. 
 | `blockLocalAddresses`   | boolean  | `false` | Refuse local and private scope addresses. See [Address validation](#address-validation)         |
 | `blockReservedNetworks` | boolean  | `false` | Refuse IANA special-purpose addresses. See [Address validation](#address-validation)            |
 | `nat64Prefixes`         | string[] | `[]`    | NAT64 prefixes your own network runs. See [NAT64 on your own prefix](#nat64-on-your-own-prefix) |
-| `resolveAsync`          | function |         | DNS resolver returning the records. See [Custom DNS resolver](#custom-dns-resolver)             |
+| `resolveRecords`        | function |         | DNS resolver returning the records. See [Custom DNS resolver](#custom-dns-resolver)             |
 | `resolve`               | function |         | Callback-style DNS resolver. See [Custom DNS resolver](#custom-dns-resolver)                    |
 
 With neither set, native `dns.promises` is used.
 
 #### Custom DNS resolver
 
-`resolveAsync` receives a domain and a record type and returns the records:
+`resolveRecords` receives a domain and a record type and returns the records:
 
 ```javascript
 const connection = await mxConnect({
     target: 'user@example.com',
     dnsOptions: {
-        async resolveAsync(domain, type) {
+        async resolveRecords(domain, type) {
             // type is 'MX', 'A', 'AAAA' or 'TXT'
             return myResolver.lookup(domain, type);
         }
@@ -117,14 +117,14 @@ Returning the records directly is fine too, so a resolver backed by a cache does
 
 ```javascript
 const dnsOptions = {
-    resolveAsync: (domain, type) => cache.get(`${domain}:${type}`) ?? []
+    resolveRecords: (domain, type) => cache.get(`${domain}:${type}`) ?? []
 };
 ```
 
 Throwing, or returning a rejected promise, is how you report a lookup failure. Set `err.code` to `ENOTFOUND` or `ENODATA` to say "no records of this type", which lets resolution fall through to the next step; any other code is treated as a real DNS failure.
 
 > [!TIP]
-> `resolveAsync` always receives an explicit record type, A lookups included.
+> `resolveRecords` always receives an explicit record type, A lookups included.
 
 The older `resolve` option takes a callback and is still supported:
 
@@ -137,10 +137,14 @@ const dnsOptions = {
 };
 ```
 
-It is called as `resolve(domain, type, callback)`, except for A records where it is called as `resolve(domain, callback)` with no type at all. That quirk is why `resolveAsync` exists; prefer it for new code.
+It is called as `resolve(domain, type, callback)`, except for A records where it is called as `resolve(domain, callback)` with no type at all. That quirk is why `resolveRecords` exists; prefer it for new code.
 
 > [!NOTE]
-> If both are set, `resolveAsync` is used and `resolve` is ignored, so you can migrate one deployment at a time.
+> If both are set, `resolveRecords` is used and `resolve` is ignored, so you can migrate one deployment at a time.
+
+Setting either option to something that is not a function throws, rather than quietly falling back to the system resolver. A mistyped option would otherwise send mail through a resolver you did not choose, losing whatever yours was there for, and nothing would say so. Leaving an option unset, or setting it to `null`, is not a mistake and falls through as normal.
+
+Neither option covers TLSA lookups for DANE, which have their own [`dane.resolveTlsa`](#custom-tlsa-resolver). Wiring up a single resolver here does not route those through it.
 
 #### ignoreIPv6
 
