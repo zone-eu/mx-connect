@@ -64,7 +64,7 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 - `resolve-mx.js` - Async DNS MX record resolution with fallback to A/AAAA records
 - `resolve-ip.js` - Async resolution of MX hostnames to IPv4/IPv6 addresses (parallel)
 - `get-connection.js` - Async iteration through MX hosts attempting TCP connections
-- `tools.js` - Shared utilities: `getDnsResolver` (promisifies custom DNS resolvers or uses native `dns.promises`), `isNotFoundError`, IP validation (`isLocal`, `isInvalid`)
+- `tools.js` - Shared utilities: `getDnsResolver` (selects the DNS resolver, see below), `isNotFoundError`, IP validation (`isLocal`, `isInvalid`, `checkAddress`)
 - `dns-errors.js` / `net-errors.js` - Error code to message mappings
 
 **Key data structure:** The `delivery` object flows through the pipeline, accumulating:
@@ -75,7 +75,7 @@ formatAddress -> resolvePolicy -> resolveMX -> validateMxPolicy -> resolveIP -> 
 
 **MTA-STS integration:** Uses `mailauth` library for policy fetching and MX validation. Policies are cached via user-provided cache handlers.
 
-**Custom DNS resolvers:** The library accepts callback-style custom resolvers via `dnsOptions.resolve`. These are automatically promisified internally. When no custom resolver is provided, native `dns.promises` is used.
+**Custom DNS resolvers:** `tools.getDnsResolver(dnsOptions)` builds the one resolver the whole pipeline uses, choosing between `dnsOptions.resolveRecords`, the older callback-style `dnsOptions.resolve`, and native `dns.promises`. The user-facing contract for both options, including why the callback form still omits the record type for A lookups, is documented in the README under Custom DNS resolver. TLSA lookups do not go through here; they have their own `dane.resolveTlsa`.
 
 **Async conventions:** All asynchronous code uses async/await. Raw promise primitives are limited to justified boundaries: `new Promise` wrappers where callback-style user APIs (custom DNS resolvers, `connectHook`) or event-based APIs (`net.connect` with timeout race) meet async code, `Promise.all` for parallel fan-out, and the `.then()` bridge in `mx-connect.js` that feeds the public callback API.
 

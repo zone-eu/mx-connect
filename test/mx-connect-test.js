@@ -4,7 +4,15 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const mxConnect = require('../lib/mx-connect');
-const { createMockDnsResolver, createTrackingDnsResolver, createMockSocket, startGreetingServer, closeServer } = require('./test-utils');
+const {
+    createMockDnsResolver,
+    createTrackingDnsResolver,
+    createMockRecordResolver,
+    createMockConnectHook,
+    createMockSocket,
+    startGreetingServer,
+    closeServer
+} = require('./test-utils');
 
 test('basicWithMock', (t, done) => {
     const mockResolver = createMockDnsResolver({
@@ -852,4 +860,116 @@ test('endToEndOverRealSocket', async () => {
     }
 
     await closeServer(server);
+});
+
+test('resolveRecordsDrivesTheWholePipeline', async () => {
+    // The promise-based resolver has to serve every lookup the delivery makes, not just the
+    // MX one, and each has to arrive with its record type named
+    const { resolver, calls } = createMockRecordResolver({
+        'async.example.com:MX': { data: [{ exchange: 'mail.example.com', priority: 10 }] },
+        'mail.example.com:A': { data: ['192.0.2.1'] }
+    });
+
+    const connection = await mxConnect({
+        target: 'async.example.com',
+        dnsOptions: { resolveRecords: resolver },
+        connectHook: createMockConnectHook()
+    });
+
+    assert.strictEqual(connection.host, '192.0.2.1');
+    assert.ok(calls.includes('async.example.com:MX'), 'The MX lookup should go through resolveRecords');
+    assert.ok(calls.includes('mail.example.com:A'), 'Address lookups should go through it too');
+    assert.ok(!calls.some(call => call.endsWith(':undefined')), 'Every lookup should name its record type');
+});
+
+test('resolveRecordsCoversTheMtaStsPolicyLookup', async () => {
+    // The policy host is resolved before any MX record is considered, and it must use the
+    // caller's resolver like everything else. Falling back to system DNS there would both
+    // ignore the configuration and reach a different answer than the rest of the delivery.
+    const { resolver, calls } = createMockRecordResolver({
+        '_mta-sts.sts-async.example.com:TXT': { data: [['v=STSv1; id=async1']] },
+        'mail.example.com:A': { data: ['192.0.2.1'] }
+    });
+
+    const connection = await mxConnect({
+        target: 'sts-async.example.com',
+        mx: ['mail.example.com'],
+        mtaSts: { enabled: true },
+        dnsOptions: { resolveRecords: resolver },
+        connectHook: createMockConnectHook()
+    });
+
+    assert.ok(connection.socket);
+    assert.ok(calls.includes('_mta-sts.sts-async.example.com:TXT'), 'The policy TXT lookup should use resolveRecords');
+    assert.ok(
+        calls.some(call => call.startsWith('mta-sts.sts-async.example.com:')),
+        'The policy host lookup should use resolveRecords'
+    );
+});
+
+test('legacyResolveStillHonouredAlongsideTheNewOption', async () => {
+    // Adding resolveRecords changed how the resolver is selected, so the callback option has
+    // to keep being picked up when it is the only one set. Its arity contract is pinned by
+    // mtaStsPolicyResolverUsesTwoArgumentAForm; this only guards the selection.
+    const { resolver, calls } = createTrackingDnsResolver({
+        'legacy.example.com:MX': { data: [{ exchange: 'mail.example.com', priority: 10 }] },
+        'mail.example.com:A': { data: ['192.0.2.3'] }
+    });
+
+    const connection = await mxConnect({
+        target: 'legacy.example.com',
+        dnsOptions: { resolve: resolver },
+        connectHook: createMockConnectHook()
+    });
+
+    assert.strictEqual(connection.host, '192.0.2.3');
+    assert.ok(calls.length > 0, 'The callback resolver must still be used when it is the only one set');
+});
+
+test('mtaStsPolicyFilterOnlyTrustsRealArrays', async () => {
+    // mailauth connects to whatever the resolver returned, so the validation in between has
+    // to run over an array we recognise. An answer that supplies its own filter method would
+    // otherwise choose what survives and hand back an address nothing checked.
+    const https = require('https');
+    const originalRequest = https.request;
+    const requestedHosts = [];
+
+    https.request = options => {
+        requestedHosts.push(options.host);
+        throw new Error('no request should be made in this test');
+    };
+
+    try {
+        const connection = await mxConnect({
+            target: 'duck.example.com',
+            mx: ['mail.example.com'],
+            mtaSts: { enabled: true },
+            dnsOptions: {
+                blockLocalAddresses: true,
+                resolveRecords(domain, type) {
+                    if (type === 'TXT') {
+                        return [['v=STSv1; id=duck1']];
+                    }
+                    if (domain.startsWith('mta-sts.')) {
+                        // Array-like, with a filter that would wave anything through
+                        return { length: 1, 0: '127.0.0.1', filter: () => ['127.0.0.1'] };
+                    }
+                    if (type === 'A') {
+                        return ['192.0.2.1'];
+                    }
+                    const err = new Error('ENODATA');
+                    err.code = 'ENODATA';
+                    throw err;
+                }
+            },
+            connectHook: createMockConnectHook()
+        });
+
+        assert.ok(connection.socket, 'Delivery should still proceed over the legitimate MX');
+        assert.strictEqual(connection.host, '192.0.2.1');
+    } finally {
+        https.request = originalRequest;
+    }
+
+    assert.deepStrictEqual(requestedHosts, [], 'No policy fetch may be made to an address the filter never saw');
 });
