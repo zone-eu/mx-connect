@@ -22,6 +22,8 @@ jobs:
                   cache: npm
             - run: npm ci
             - run: npm run lint
-            # Unit tests only: the integration suite needs outbound port 25,
-            # which GitHub-hosted runners block
             - run: npm run test:unit
+            # The integration suite connects only to a local listener on a high port, so it
+            # runs here too. It still resolves a handful of real domains, so a failure can
+            # also mean DNS or a published MTA-STS policy changed rather than a code fault.
+            - run: npm run test:integration

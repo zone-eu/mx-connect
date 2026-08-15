@@ -14,6 +14,26 @@ function startServer() {
     });
 }
 
+/**
+ * Starts a TCP server on a random loopback port that greets each connection the way an
+ * SMTP server would.
+ *
+ * Integration tests use this instead of dialling someone else's mail server on port 25.
+ * What they exercise is this library's connection handling, not the internet, and a real
+ * MX makes them depend on a port that hosted CI runners block outright.
+ */
+function startGreetingServer(greeting = '220 mx-connect.test ESMTP ready\r\n') {
+    return new Promise(resolve => {
+        const server = net.createServer(socket => {
+            // The client hangs up as soon as it has read the greeting, so a write or reset
+            // racing that is expected rather than a failure
+            socket.on('error', () => false);
+            socket.write(greeting);
+        });
+        server.listen(0, '127.0.0.1', () => resolve(server));
+    });
+}
+
 function closeServer(server) {
     return new Promise(resolve => server.close(resolve));
 }
@@ -156,6 +176,7 @@ function closeSocketAfterData(socket, done) {
 
 module.exports = {
     startServer,
+    startGreetingServer,
     closeServer,
     getFreePort,
     createMockDnsResolver,
