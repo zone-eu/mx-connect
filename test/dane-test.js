@@ -799,7 +799,7 @@ function generateTestCert() {
 /**
  * Build a mock raw peer cert (as returned by tls.getPeerCertificate()).
  * .raw   = full DER certificate (valid)
- * .pubkey = raw public key bytes (NOT SPKI — this is what Node.js actually provides)
+ * .pubkey = raw public key bytes (NOT SPKI, this is what Node.js actually provides)
  */
 function makeRawPeerCert(certDer, spkiDer) {
     return {
@@ -886,7 +886,7 @@ test('extractSPKIConsistentAcrossCertTypes', async () => {
  * Test full DANE-EE (usage=3) SPKI SHA-256 verification with raw peer cert
  *
  * This is the most common DANE configuration (e.g., mx1.forwardemail.net).
- * Verifies the complete pipeline: extractSPKI → hash → compare against TLSA.
+ * Verifies the complete pipeline: extractSPKI, then hash, then compare against TLSA.
  */
 test('verifyCertDaneEESPKISha256RawPeerCert', async () => {
     const { certDer, spkiDer } = generateTestCert();
@@ -1300,13 +1300,13 @@ test('verifyCertMultipleTlsaRecordsFirstMatchWins', async () => {
             usage: 3,
             selector: 1,
             mtype: 1,
-            cert: Buffer.alloc(32, 0xab) // Wrong — won't match
+            cert: Buffer.alloc(32, 0xab) // Wrong, will not match
         },
         {
             usage: 3,
             selector: 1,
             mtype: 1,
-            cert: spkiHash // Correct — should match
+            cert: spkiHash // Correct, should match
         }
     ];
 
