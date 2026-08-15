@@ -3,6 +3,10 @@
     "version": "1.7.0",
     "description": "Establish TCP connection to a MX server with MTA-STS and DANE/TLSA support",
     "main": "lib/mx-connect.js",
+    "files": [
+        "lib",
+        "CHANGELOG.md"
+    ],
     "engines": {
         "node": ">=22.19.0"
     },
