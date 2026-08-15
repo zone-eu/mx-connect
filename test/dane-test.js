@@ -1461,3 +1461,86 @@ test('verifierHandlesMalformedTlsaRecordsWithoutThrowing', async () => {
     assert.strictEqual(result.code, 'DANE_VERIFICATION_ERROR');
     assert.strictEqual(result.category, 'dane');
 });
+
+test('verifyCertTaUnparseableChainEntryRefusesWholeChain', async () => {
+    // A chain entry that cannot be parsed might be the very link joining the leaf to the
+    // pinned anchor. Skipping past it and reasoning about what remains would let an
+    // attacker hide a missing link behind a malformed entry, so the chain is refused
+    // outright instead.
+    const intact = dane.verifyCertAgainstTlsa(TA_LEAF, TA_TLSA_RECORDS, [TA_CA]);
+    assert.strictEqual(intact.valid, true, 'The intact chain must verify, so the comparison below is like for like');
+
+    for (const junk of [Buffer.from('not a certificate'), null, {}, 'garbage', 42]) {
+        const result = dane.verifyCertAgainstTlsa(TA_LEAF, TA_TLSA_RECORDS, [junk, TA_CA]);
+        assert.strictEqual(result.valid, false, `A chain holding ${typeof junk} junk must not verify`);
+        assert.ok(result.error.includes('no verified path'), 'The failure should name the missing verified path');
+    }
+});
+
+test('verifyCertTaUnparseableLeafRefusesChain', async () => {
+    // Same reasoning for the leaf: with nothing to build a path from, a trust anchor
+    // record cannot be checked and must not be treated as a match
+    const result = dane.verifyCertAgainstTlsa({ raw: Buffer.from('not a certificate') }, TA_TLSA_RECORDS, [TA_CA]);
+    assert.strictEqual(result.valid, false, 'An unparseable leaf must not verify against a trust anchor record');
+    assert.ok(result.error.includes('no verified path'));
+});
+
+test('verifyCertDaneEEAcceptsTypedArrayCertData', async () => {
+    // A resolver may hand back the association data as a typed array rather than a Buffer.
+    // It has to be accepted exactly like the Buffer form, or DANE silently stops matching
+    // for anyone using such a resolver.
+    const { certDer, spkiDer } = generateTestCert();
+    const digest = nodeCrypto.createHash('sha256').update(spkiDer).digest();
+    const leaf = new nodeCrypto.X509Certificate(certDer);
+
+    for (const certData of [new Uint8Array(digest), digest.buffer.slice(digest.byteOffset, digest.byteOffset + digest.byteLength)]) {
+        const records = [{ usage: 3, selector: 1, mtype: 1, cert: certData }];
+        const result = dane.verifyCertAgainstTlsa(leaf, records, null);
+        assert.strictEqual(result.valid, true, 'A typed array or ArrayBuffer must match like a Buffer');
+    }
+
+    // And a typed array holding the wrong digest must still fail
+    const wrong = [{ usage: 3, selector: 1, mtype: 1, cert: new Uint8Array(32) }];
+    assert.strictEqual(dane.verifyCertAgainstTlsa(leaf, wrong, null).valid, false, 'A wrong digest must not match whatever its container');
+});
+
+test('verifyCertRecordThatThrowsIsReportedNotPropagated', async () => {
+    // A record that blows up while being read must be reported as a failed match rather
+    // than escaping into the TLS handshake, where it would surface as an unrelated crash
+    const { certDer } = generateTestCert();
+    const leaf = new nodeCrypto.X509Certificate(certDer);
+    const hostile = {
+        usage: 3,
+        selector: 1,
+        mtype: 1,
+        get cert() {
+            throw new Error('malformed association data');
+        }
+    };
+
+    const result = dane.verifyCertAgainstTlsa(leaf, [hostile], null);
+    assert.strictEqual(result.valid, false, 'A record that throws must not be treated as a match');
+    assert.ok(result.error.includes('malformed association data'), 'The underlying reason should be reported');
+});
+
+test('verifyCertUnhashableCertDataDoesNotMatch', async () => {
+    // If the certificate data cannot be read or hashed, there is nothing to compare
+    // against and verification has to fail. Returning a match here, or letting the error
+    // escape, would turn a malformed certificate into a successful DANE check.
+    const record = [{ usage: 3, selector: 0, mtype: 1, cert: Buffer.alloc(32) }];
+
+    for (const raw of [42, {}, true]) {
+        const result = dane.verifyCertAgainstTlsa({ raw }, record, null);
+        assert.strictEqual(result.valid, false, `Certificate data of type ${typeof raw} must not produce a match`);
+        assert.ok(result.error.includes('Failed to hash'), 'The failure should say the data could not be hashed');
+    }
+
+    // Reading the certificate data at all may throw; that is a failure too, not a match
+    const throwingCert = {
+        get raw() {
+            throw new Error('unreadable certificate');
+        }
+    };
+    const result = dane.verifyCertAgainstTlsa(throwingCert, record, null);
+    assert.strictEqual(result.valid, false, 'A certificate that throws while being read must not match');
+});
