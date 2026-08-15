@@ -338,3 +338,53 @@ module.exports.isInvalidIgnoreIPv6 = test => {
 
     test.done();
 };
+
+module.exports.isInvalidLocalNat64Prefixes = test => {
+    // RFC 6052 also allows a NAT64 prefix taken from a network's own address space, which
+    // nothing in the address marks as one. Only the operator knows, so they can declare it
+    // and have the carried address checked like any other.
+    const ipaddr = require('ipaddr.js');
+
+    // Build vectors per RFC 6052 section 2.2 rather than by hand: the four address bytes
+    // follow the prefix, stepping over the reserved byte 8
+    const embed = (base, prefixLen, v4) => {
+        const bytes = ipaddr.parse(base).toByteArray();
+        const octets = v4.split('.').map(Number);
+        let taken = 0;
+        for (let i = prefixLen / 8; taken < 4 && i < bytes.length; i++) {
+            if (i !== 8) {
+                bytes[i] = octets[taken++];
+            }
+        }
+        return ipaddr.fromByteArray(bytes).toString();
+    };
+
+    for (const prefixLen of [32, 40, 48, 56, 64, 96]) {
+        const base = '2a01:4f8::';
+        const cidr = `${base}/${prefixLen}`;
+        const options = { blockLocalAddresses: true, nat64Prefixes: [cidr] };
+
+        const loopback = embed(base, prefixLen, '127.0.0.1');
+        const result = tools.isInvalid({ dnsOptions: options }, loopback);
+        test.ok(result, `${cidr} carrying 127.0.0.1 should be refused`);
+        test.ok(result.includes('127.0.0.1'), `${cidr} should name the carried address`);
+
+        // Undeclared, the same address is indistinguishable from an ordinary IPv6 host
+        test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true } }, loopback), false, `${cidr} cannot be detected unless declared`);
+
+        // A public address behind the same prefix stays deliverable
+        test.equal(
+            tools.isInvalid({ dnsOptions: options }, embed(base, prefixLen, '8.8.8.8')),
+            false,
+            `${cidr} carrying a public address should be deliverable`
+        );
+    }
+
+    // Addresses outside the declared prefix are untouched
+    test.equal(tools.isInvalid({ dnsOptions: { blockLocalAddresses: true, nat64Prefixes: ['2a01:4f8::/96'] } }, '2606:4700:4700::1111'), false);
+
+    // A prefix that cannot be parsed must be ignored rather than throw on every address
+    test.equal(tools.isInvalid({ dnsOptions: { nat64Prefixes: ['not-a-cidr', '198.51.100.0/24'] } }, '8.8.8.8'), false);
+
+    test.done();
+};
