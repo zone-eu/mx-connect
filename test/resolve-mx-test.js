@@ -406,30 +406,61 @@ module.exports.aaaaFallbackServfail = async test => {
     test.done();
 };
 
-module.exports.ignoreIPv6SkipsAaaaFallback = async test => {
-    // With ignoreIPv6 the AAAA fallback must not even be queried
-    const calls = [];
-    const customResolver = (domain, typeOrCallback, maybeCallback) => {
-        const callback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback;
-        const type = typeof typeOrCallback === 'string' ? typeOrCallback : 'A';
-        calls.push(type);
-        const err = new Error('ENODATA');
-        err.code = 'ENODATA';
-        return setImmediate(() => callback(err));
+module.exports.ignoreIPv6ReportsIpv6OnlyDomain = async test => {
+    // A domain with neither MX nor A records, reachable only over IPv6, used to be
+    // indistinguishable under ignoreIPv6 from one with no mail service at all, because the
+    // AAAA fallback was skipped: it bounced as "no MX server found" for what is really a
+    // local setting. The lookup now happens and the address is refused instead, which is
+    // both accurate and retryable.
+    const mockResolver = createMockDnsResolver({
+        'v6only.example.com:MX': { error: createDnsError('ENODATA') },
+        'v6only.example.com:A': { error: createDnsError('ENODATA') },
+        'v6only.example.com:AAAA': { data: ['2606:4700:4700::1111'] }
+    });
+
+    const delivery = {
+        domain: 'v6only.example.com',
+        isIp: false,
+        isPunycode: false,
+        decodedDomain: 'v6only.example.com',
+        dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
     };
 
     try {
+        await resolveMx(delivery);
+        test.ok(false, 'Should have rejected');
+    } catch (err) {
+        test.equal(err.category, 'dns');
+        test.equal(err.code, 'InvalidIpAddress');
+        test.equal(err.temporary, true, 'A local setting must hold the message rather than bounce it');
+        test.ok(err.message.includes('2606:4700:4700::1111'), 'The error should name the address that was refused');
+        test.deepEqual(
+            delivery.blockedAddresses.map(entry => entry.ip),
+            ['2606:4700:4700::1111'],
+            'The refused address should be recorded'
+        );
+    }
+    test.done();
+};
+
+module.exports.ignoreIPv6DomainWithNoRecordsAtAll = async test => {
+    // A domain with genuinely nothing published must still be a plain "no MX server found",
+    // not be misreported as an IPv6 problem
+    const mockResolver = createMockDnsResolver({});
+
+    try {
         await resolveMx({
-            domain: 'v4only.example.com',
+            domain: 'nothing.example.com',
             isIp: false,
             isPunycode: false,
-            decodedDomain: 'v4only.example.com',
-            dnsOptions: { resolve: customResolver, ignoreIPv6: true }
+            decodedDomain: 'nothing.example.com',
+            dnsOptions: { resolve: mockResolver, ignoreIPv6: true }
         });
         test.ok(false, 'Should have rejected');
     } catch (err) {
         test.equal(err.category, 'dns');
-        test.ok(!calls.includes('AAAA'), 'AAAA lookup must be skipped with ignoreIPv6');
+        test.equal(err.code, 'ENOTFOUND');
+        test.ok(!err.temporary);
     }
     test.done();
 };
