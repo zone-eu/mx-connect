@@ -1,6 +1,6 @@
 {
     "name": "mx-connect",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Establish TCP connection to a MX server with MTA-STS and DANE/TLSA support",
     "main": "lib/mx-connect.js",
     "files": [
