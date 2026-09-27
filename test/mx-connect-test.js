@@ -359,7 +359,13 @@ test('mtaStsEnforceRejectsEndToEnd', async () => {
         '_mta-sts.sts-e2e.example.com:TXT': { data: [['v=STSv1; id=test123']] }
     });
 
-    const cachedPolicy = { id: 'test123', mode: 'enforce', mx: ['mail.example.com'], maxAge: 86400 };
+    const cachedPolicy = {
+        id: 'test123',
+        mode: 'enforce',
+        mx: ['mail.example.com'],
+        maxAge: 86400,
+        expires: new Date(Date.now() + 86400 * 1000).toISOString()
+    };
     const setCalls = [];
     const cache = {
         async get() {
@@ -394,7 +400,13 @@ test('mtaStsValidMxConnectsEndToEnd', async () => {
         '_mta-sts.sts-ok.example.com:TXT': { data: [['v=STSv1; id=ok123']] }
     });
 
-    const cachedPolicy = { id: 'ok123', mode: 'enforce', mx: ['mail.example.com'], maxAge: 86400 };
+    const cachedPolicy = {
+        id: 'ok123',
+        mode: 'enforce',
+        mx: ['mail.example.com'],
+        maxAge: 86400,
+        expires: new Date(Date.now() + 86400 * 1000).toISOString()
+    };
     const cache = {
         async get() {
             return cachedPolicy;
