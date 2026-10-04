@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/zone-eu/mx-connect/compare/v2.0.1...v2.0.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* **deps:** update mailauth to 7.1.1 ([c67f14b](https://github.com/zone-eu/mx-connect/commit/c67f14b827db15d314527984bec31e623715bfec))
+
 ## [2.0.1](https://github.com/zone-eu/mx-connect/compare/v2.0.0...v2.0.1) (2026-09-27)
 
 
