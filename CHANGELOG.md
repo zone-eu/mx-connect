@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/zone-eu/mx-connect/compare/v2.0.2...v2.0.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* bump deps ([#39](https://github.com/zone-eu/mx-connect/issues/39)) ([35d4417](https://github.com/zone-eu/mx-connect/commit/35d4417e4c4b2d2436c97faba03eddf569120fb8))
+
 ## [2.0.2](https://github.com/zone-eu/mx-connect/compare/v2.0.1...v2.0.2) (2026-10-04)
 
 
